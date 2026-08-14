@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Home, GraduationCap, Target, Calendar as CalendarIcon, TrendingUp, Settings as SettingsIcon,
   BookOpen, FlaskConical, Users, ClipboardList, MessageSquare, Mic, FileText, Clock,
@@ -301,12 +301,34 @@ function EmptyState({ text }) {
   return <div className="pt-empty">{text}</div>;
 }
 
-function XPToast({ toast }) {
+// Generalized toast — same visual pattern as the original XP toast, extended
+// to also carry a plain message and/or an Undo action for non-XP feedback.
+function AppToast({ toast, onDismiss }) {
   if (!toast) return null;
   return (
     <div className="pt-xp-toast">
       <Sparkles size={15} />
-      <span>+{toast.amount} XP — {toast.reason}</span>
+      <span>{toast.amount != null ? `+${toast.amount} XP — ${toast.reason}` : toast.message}</span>
+      {toast.undo && (
+        <button className="pt-toast-undo" onClick={() => { toast.undo(); onDismiss(); }}>Undo</button>
+      )}
+    </div>
+  );
+}
+
+// Reusable confirmation prompt for actions that can't easily be undone
+// in place (e.g. a one-way status switch, or overwriting all local data).
+function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onConfirm, onCancel }) {
+  return (
+    <div className="pt-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="pt-modal" style={{ maxWidth: 420 }}>
+        <h3 className="pt-h2" style={{ marginBottom: 10 }}>{title}</h3>
+        <p className="pt-sub" style={{ marginBottom: 20 }}>{message}</p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="pt-btn" onClick={onCancel}>Cancel</button>
+          <button className={`pt-btn ${danger ? "pt-btn-danger" : "pt-btn-primary"}`} style={danger ? { borderColor: "var(--behind)" } : undefined} onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -324,14 +346,26 @@ export default function Tracker({ onSignOut }) {
   const [nav, setNav] = useState("home");
   const [subNav, setSubNav] = useState(null);
   const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   const allLoaded = sLoaded && tLoaded && gLoaded && cLoaded && mLoaded;
 
-  const addXP = useCallback((amount, reason) => {
+  const showToast = useCallback((data, duration) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(data);
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
+  }, []);
+
+  // Generic feedback toast for create/edit/delete actions. Pass `undo` to
+  // let the user reverse the action for a few seconds after it happens.
+  const notify = useCallback((message, undo) => {
+    showToast({ message, undo }, undo ? 6000 : 3000);
+  }, [showToast]);
+
+  const addXP = useCallback((amount, reason, undo) => {
     saveMeta((prev) => ({ ...prev, xp: (prev.xp || 0) + amount, xpLog: [{ id: uid(), date: todayISO(), amount, reason }, ...(prev.xpLog || [])].slice(0, 200) }));
-    setToast({ amount, reason });
-    setTimeout(() => setToast(null), 2600);
-  }, [saveMeta]);
+    showToast({ amount, reason, undo }, undo ? 6000 : 2600);
+  }, [saveMeta, showToast]);
 
   if (!allLoaded) {
     return (
@@ -347,7 +381,7 @@ export default function Tracker({ onSignOut }) {
     );
   }
 
-  const ctx = { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, addXP, nav, setNav, subNav, setSubNav, onSignOut };
+  const ctx = { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, addXP, notify, nav, setNav, subNav, setSubNav, onSignOut };
 
   return (
     <div className="pt-root">
@@ -362,7 +396,7 @@ export default function Tracker({ onSignOut }) {
         {nav === "progress" && <ProgressScreen ctx={ctx} />}
         {nav === "settings" && <SettingsScreen ctx={ctx} />}
       </main>
-      <XPToast toast={toast} />
+      <AppToast toast={toast} onDismiss={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setToast(null); }} />
     </div>
   );
 }
@@ -409,9 +443,9 @@ function Sidebar({ ctx }) {
           </div>
         ))}
       </nav>
-      <div style={{ flex: 1 }} />
+      <div className="pt-sidebar-spacer" style={{ flex: 1 }} />
       <div className="pt-nav-divider" />
-      <div style={{ padding: "0 10px", fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.5, marginBottom: 10 }}>
+      <div className="pt-sidebar-note" style={{ padding: "0 10px", fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.5, marginBottom: 10 }}>
         Private to your account.<br />Data syncs across devices.
       </div>
       <button className="pt-nav-item" onClick={onSignOut}>
@@ -480,7 +514,7 @@ const GOAL_META = {
    HOME SCREEN
    ========================================================================= */
 function HomeScreen({ ctx }) {
-  const { settings, thesis, goals, calendar, meta, saveMeta, setNav, setSubNav, addXP } = ctx;
+  const { settings, thesis, goals, calendar, meta, saveMeta, setNav, setSubNav, addXP, notify } = ctx;
   const daysLeft = daysBetween(todayISO(), settings.thesisMidterm);
   const daysSince = Math.max(0, daysBetween(settings.trackerStart, todayISO()));
 
@@ -524,7 +558,15 @@ function HomeScreen({ ctx }) {
     });
   }
   function removePriority(id) {
+    const removed = (meta.topPriorities[today] || []).find((p) => p.id === id);
     saveMeta((prev) => ({ ...prev, topPriorities: { ...prev.topPriorities, [today]: (prev.topPriorities[today] || []).filter((p) => p.id !== id) } }));
+    if (removed) {
+      notify("Priority removed", () => saveMeta((prev) => {
+        const list = prev.topPriorities[today] || [];
+        if (list.some((p) => p.id === id)) return prev;
+        return { ...prev, topPriorities: { ...prev.topPriorities, [today]: [...list, removed] } };
+      }));
+    }
   }
 
   const [newPriority, setNewPriority] = useState("");
@@ -556,19 +598,19 @@ function HomeScreen({ ctx }) {
           {priorities.length === 0 && <EmptyState text="No priorities set for today yet." />}
           {priorities.map((p) => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line-soft)" }}>
-              <button className="pt-btn-ghost pt-btn" style={{ padding: 0, border: "none" }} onClick={() => togglePriority(p.id)}>
+              <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => togglePriority(p.id)}>
                 {p.done ? <CheckCircle2 size={17} color="var(--ontrack)" /> : <Circle size={17} color="var(--ink-faint)" />}
               </button>
               <span style={{ flex: 1, fontSize: 13.5, textDecoration: p.done ? "line-through" : "none", color: p.done ? "var(--ink-faint)" : "var(--ink)" }}>{p.text}</span>
-              <button className="pt-btn-ghost pt-btn" onClick={() => removePriority(p.id)}><X size={13} /></button>
+              <button className="pt-btn-ghost pt-btn pt-tap" onClick={() => removePriority(p.id)}><X size={13} /></button>
             </div>
           ))}
           {priorities.length < 3 && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
               <input className="pt-input" placeholder="Add a priority…" value={newPriority}
                 onChange={(e) => setNewPriority(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { addPriority(newPriority); setNewPriority(""); } }} />
-              <button className="pt-btn pt-btn-primary" onClick={() => { addPriority(newPriority); setNewPriority(""); }}><Plus size={14} /></button>
+                onKeyDown={(e) => { if (e.key === "Enter" && newPriority.trim()) { addPriority(newPriority); setNewPriority(""); } }} />
+              <button className="pt-btn pt-btn-primary" disabled={!newPriority.trim()} onClick={() => { addPriority(newPriority); setNewPriority(""); }}><Plus size={14} /></button>
             </div>
           )}
         </div>
@@ -672,13 +714,14 @@ function ThesisScreen({ ctx }) {
 }
 
 function RoadmapTab({ ctx }) {
-  const { thesis, saveThesis, addXP } = ctx;
+  const { thesis, saveThesis, addXP, notify } = ctx;
   const [editing, setEditing] = useState(null);
 
   function updatePhase(id, patch) {
     const wasCompleted = thesis.roadmap.find((p) => p.id === id)?.status === "COMPLETED";
     saveThesis((prev) => ({ ...prev, roadmap: prev.roadmap.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
     if (patch.status === "COMPLETED" && !wasCompleted) addXP(50, "Thesis phase completed");
+    else notify("Phase updated");
   }
 
   return (
@@ -727,7 +770,7 @@ function RoadmapTab({ ctx }) {
 }
 
 function LiteratureTab({ ctx }) {
-  const { thesis, saveThesis, addXP } = ctx;
+  const { thesis, saveThesis, addXP, notify } = ctx;
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const lit = thesis.literature;
@@ -737,17 +780,24 @@ function LiteratureTab({ ctx }) {
   const gaps = lit.filter((a) => a.notes && a.notes.toLowerCase().includes("gap")).length;
 
   function upsert(item) {
+    const isNew = !lit.some((a) => a.id === item.id);
     saveThesis((prev) => {
       const exists = prev.literature.some((a) => a.id === item.id);
       return { ...prev, literature: exists ? prev.literature.map((a) => (a.id === item.id ? item : a)) : [item, ...prev.literature] };
     });
+    notify(isNew ? "Article added" : "Article updated");
   }
-  function remove(id) { saveThesis((prev) => ({ ...prev, literature: prev.literature.filter((a) => a.id !== id) })); }
+  function remove(id) {
+    const removed = lit.find((a) => a.id === id);
+    saveThesis((prev) => ({ ...prev, literature: prev.literature.filter((a) => a.id !== id) }));
+    notify("Article removed", () => saveThesis((prev) => ({ ...prev, literature: prev.literature.some((a) => a.id === id) ? prev.literature : [removed, ...prev.literature] })));
+  }
   function setStatus(id, status) {
     const prevItem = lit.find((a) => a.id === id);
     saveThesis((prev) => ({ ...prev, literature: prev.literature.map((a) => (a.id === id ? { ...a, status } : a)) }));
     if (status === "ANALYSED" && prevItem?.status !== "ANALYSED") addXP(15, "Article analysed");
   }
+  const canSaveArticle = !!(editItem && editItem.title.trim());
 
   return (
     <div>
@@ -762,27 +812,29 @@ function LiteratureTab({ ctx }) {
         <button className="pt-btn pt-btn-primary" onClick={() => { setEditItem(blankArticle()); setShowForm(true); }}><Plus size={14} /> Add article / note</button>
       </div>
       {lit.length === 0 ? <EmptyState text="No articles yet. Add your first source to begin the literature review." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Title</th><th>Author / Year</th><th>Status</th><th>Key idea</th><th></th></tr></thead>
-          <tbody>
-            {lit.map((a) => (
-              <tr key={a.id}>
-                <td style={{ fontWeight: 600, maxWidth: 220 }}>{a.title || "(untitled)"}</td>
-                <td>{a.author}{a.year ? `, ${a.year}` : ""}</td>
-                <td>
-                  <select className="pt-select" style={{ width: 130 }} value={a.status} onChange={(e) => setStatus(a.id, e.target.value)}>
-                    {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td style={{ maxWidth: 260, color: "var(--ink-soft)" }}>{a.keyIdea}</td>
-                <td style={{ whiteSpace: "nowrap" }}>
-                  <button className="pt-btn pt-btn-ghost" onClick={() => { setEditItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
-                  <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(a.id)}><Trash2 size={14} /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Title</th><th>Author / Year</th><th>Status</th><th>Key idea</th><th></th></tr></thead>
+            <tbody>
+              {lit.map((a) => (
+                <tr key={a.id}>
+                  <td style={{ fontWeight: 600, maxWidth: 220 }}>{a.title || "(untitled)"}</td>
+                  <td>{a.author}{a.year ? `, ${a.year}` : ""}</td>
+                  <td>
+                    <select className="pt-select" style={{ width: 130 }} value={a.status} onChange={(e) => setStatus(a.id, e.target.value)}>
+                      {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td style={{ maxWidth: 260, color: "var(--ink-soft)" }}>{a.keyIdea}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button className="pt-btn pt-btn-ghost" onClick={() => { setEditItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
+                    <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(a.id)}><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {showForm && (
@@ -810,7 +862,8 @@ function LiteratureTab({ ctx }) {
           <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 12, display: "flex", gap: 6, alignItems: "flex-start" }}>
             <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} /> PDF file storage isn't available in this environment — store the DOI/URL above and keep the PDF in your own file system or reference manager.
           </div>
-          <button className="pt-btn pt-btn-primary" onClick={() => { upsert({ ...editItem, id: editItem.id || uid() }); setShowForm(false); }}>Save article</button>
+          {!canSaveArticle && <div className="pt-field-error">Title is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveArticle} onClick={() => { upsert({ ...editItem, id: editItem.id || uid() }); setShowForm(false); }}>Save article</button>
         </Modal>
       )}
     </div>
@@ -828,14 +881,19 @@ function MiniStat({ label, value }) {
   );
 }
 
-function TagListEditor({ items, onChange, placeholder }) {
+function TagListEditor({ items, onChange, placeholder, notify }) {
   const [val, setVal] = useState("");
+  function remove(i) {
+    const prevItems = items;
+    onChange(items.filter((_, idx) => idx !== i));
+    if (notify) notify(`"${items[i]}" removed`, () => onChange(prevItems));
+  }
   return (
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
         {items.map((it, i) => (
           <span key={i} className="pt-chip" style={{ display: "inline-flex", gap: 6 }}>
-            {it} <X size={11} style={{ cursor: "pointer" }} onClick={() => onChange(items.filter((_, idx) => idx !== i))} />
+            {it} <span style={{ cursor: "pointer", display: "inline-flex", padding: 4, margin: -4 }} onClick={() => remove(i)}><X size={11} /></span>
           </span>
         ))}
       </div>
@@ -849,7 +907,7 @@ function TagListEditor({ items, onChange, placeholder }) {
 }
 
 function FrameworkTab({ ctx }) {
-  const { thesis, saveThesis } = ctx;
+  const { thesis, saveThesis, notify } = ctx;
   const fw = thesis.framework;
   function patch(p) { saveThesis((prev) => ({ ...prev, framework: { ...prev.framework, ...p } })); }
 
@@ -863,25 +921,25 @@ function FrameworkTab({ ctx }) {
       <div className="pt-grid2">
         <div className="pt-card">
           <div className="pt-label" style={{ marginBottom: 8 }}>Sub-questions</div>
-          <TagListEditor items={fw.subQuestions} onChange={(v) => patch({ subQuestions: v })} placeholder="Add a sub-question…" />
+          <TagListEditor items={fw.subQuestions} onChange={(v) => patch({ subQuestions: v })} placeholder="Add a sub-question…" notify={notify} />
         </div>
         <div className="pt-card">
           <div className="pt-label" style={{ marginBottom: 8 }}>Key concepts</div>
-          <TagListEditor items={fw.keyConcepts} onChange={(v) => patch({ keyConcepts: v })} placeholder="Add a key concept…" />
+          <TagListEditor items={fw.keyConcepts} onChange={(v) => patch({ keyConcepts: v })} placeholder="Add a key concept…" notify={notify} />
         </div>
       </div>
       <div className="pt-grid3" style={{ marginTop: 16 }}>
         <div className="pt-card">
           <div className="pt-label" style={{ marginBottom: 8 }}>Spatial factors</div>
-          <TagListEditor items={fw.spatialFactors} onChange={(v) => patch({ spatialFactors: v })} placeholder="Add factor…" />
+          <TagListEditor items={fw.spatialFactors} onChange={(v) => patch({ spatialFactors: v })} placeholder="Add factor…" notify={notify} />
         </div>
         <div className="pt-card">
           <div className="pt-label" style={{ marginBottom: 8 }}>Emotional factors</div>
-          <TagListEditor items={fw.emotionalFactors} onChange={(v) => patch({ emotionalFactors: v })} placeholder="Add factor…" />
+          <TagListEditor items={fw.emotionalFactors} onChange={(v) => patch({ emotionalFactors: v })} placeholder="Add factor…" notify={notify} />
         </div>
         <div className="pt-card">
           <div className="pt-label" style={{ marginBottom: 8 }}>Behavioural factors</div>
-          <TagListEditor items={fw.behavioralFactors} onChange={(v) => patch({ behavioralFactors: v })} placeholder="Add factor…" />
+          <TagListEditor items={fw.behavioralFactors} onChange={(v) => patch({ behavioralFactors: v })} placeholder="Add factor…" notify={notify} />
         </div>
       </div>
 
@@ -908,12 +966,21 @@ function FrameworkNode({ label, items, color }) {
 }
 
 function CaseStudiesTab({ ctx }) {
-  const { thesis, saveThesis } = ctx;
+  const { thesis, saveThesis, notify } = ctx;
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
   function blank() { return { id: null, university: "", location: "", spaceName: "", spaceType: "", whySelected: "", notes: "", status: "NOT STARTED" }; }
-  function upsert(v) { saveThesis((prev) => ({ ...prev, caseStudies: prev.caseStudies.some((c) => c.id === v.id) ? prev.caseStudies.map((c) => (c.id === v.id ? v : c)) : [v, ...prev.caseStudies] })); }
-  function remove(id) { saveThesis((prev) => ({ ...prev, caseStudies: prev.caseStudies.filter((c) => c.id !== id) })); }
+  function upsert(v) {
+    const isNew = !thesis.caseStudies.some((c) => c.id === v.id);
+    saveThesis((prev) => ({ ...prev, caseStudies: prev.caseStudies.some((c) => c.id === v.id) ? prev.caseStudies.map((c) => (c.id === v.id ? v : c)) : [v, ...prev.caseStudies] }));
+    notify(isNew ? "Case study added" : "Case study updated");
+  }
+  function remove(id) {
+    const removed = thesis.caseStudies.find((c) => c.id === id);
+    saveThesis((prev) => ({ ...prev, caseStudies: prev.caseStudies.filter((c) => c.id !== id) }));
+    notify("Case study removed", () => saveThesis((prev) => (prev.caseStudies.some((c) => c.id === id) ? prev : { ...prev, caseStudies: [removed, ...prev.caseStudies] })));
+  }
+  const canSaveCase = !!(item && item.spaceName.trim());
 
   return (
     <div>
@@ -960,7 +1027,8 @@ function CaseStudiesTab({ ctx }) {
           <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 12, display: "flex", gap: 6 }}>
             <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} /> Photo upload isn't available in this environment (storage is text/JSON only) — use the Notes field to reference where photos are kept.
           </div>
-          <button className="pt-btn pt-btn-primary" onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
+          {!canSaveCase && <div className="pt-field-error">Space name is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveCase} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
         </Modal>
       )}
     </div>
@@ -969,7 +1037,7 @@ function CaseStudiesTab({ ctx }) {
 
 const OBS_ACTIVITY_FIELDS = ["individual", "group", "socialising", "resting", "eating", "phoneUse", "other"];
 function ObservationTab({ ctx }) {
-  const { thesis, saveThesis, addXP } = ctx;
+  const { thesis, saveThesis, addXP, notify } = ctx;
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
   function blank() {
@@ -983,8 +1051,14 @@ function ObservationTab({ ctx }) {
     const isNew = !thesis.observations.some((o) => o.id === v.id);
     saveThesis((prev) => ({ ...prev, observations: isNew ? [v, ...prev.observations] : prev.observations.map((o) => (o.id === v.id ? v : o)) }));
     if (isNew) addXP(20, "Observation session logged");
+    else notify("Observation updated");
   }
-  function remove(id) { saveThesis((prev) => ({ ...prev, observations: prev.observations.filter((o) => o.id !== id) })); }
+  function remove(id) {
+    const removed = thesis.observations.find((o) => o.id === id);
+    saveThesis((prev) => ({ ...prev, observations: prev.observations.filter((o) => o.id !== id) }));
+    notify("Observation removed", () => saveThesis((prev) => (prev.observations.some((o) => o.id === id) ? prev : { ...prev, observations: [removed, ...prev.observations] })));
+  }
+  const canSaveObs = !!(item && item.location.trim());
 
   const chartData = useMemo(() => {
     const byLocation = {};
@@ -1015,18 +1089,20 @@ function ObservationTab({ ctx }) {
         </div>
       )}
       {thesis.observations.length === 0 ? <EmptyState text="No observation sessions recorded yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Date</th><th>Location</th><th>Duration</th><th>Users</th><th>Noise</th><th></th></tr></thead>
-          <tbody>
-            {thesis.observations.map((o) => (
-              <tr key={o.id}>
-                <td>{fmtDate(o.date)}</td><td>{o.location}</td><td>{o.duration}</td><td>{o.numUsers}</td><td>{o.noiseLevel}</td>
-                <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(o); setShowForm(true); }}><Edit3 size={14} /></button>
-                <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(o.id)}><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Date</th><th>Location</th><th>Duration</th><th>Users</th><th>Noise</th><th></th></tr></thead>
+            <tbody>
+              {thesis.observations.map((o) => (
+                <tr key={o.id}>
+                  <td>{fmtDate(o.date)}</td><td>{o.location}</td><td>{o.duration}</td><td>{o.numUsers}</td><td>{o.noiseLevel}</td>
+                  <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(o); setShowForm(true); }}><Edit3 size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(o.id)}><Trash2 size={14} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {showForm && (
         <Modal title="Observation session" onClose={() => setShowForm(false)} wide>
@@ -1063,7 +1139,8 @@ function ObservationTab({ ctx }) {
           </div>
           <Field label="Privacy behaviour"><input className="pt-input" value={item.privacyBehaviour} onChange={(e) => setItem({ ...item, privacyBehaviour: e.target.value })} /></Field>
           <Field label="Notes"><textarea className="pt-textarea" value={item.notes} onChange={(e) => setItem({ ...item, notes: e.target.value })} /></Field>
-          <button className="pt-btn pt-btn-primary" onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save session</button>
+          {!canSaveObs && <div className="pt-field-error">Location is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveObs} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save session</button>
         </Modal>
       )}
     </div>
@@ -1072,15 +1149,24 @@ function ObservationTab({ ctx }) {
 
 const QUESTIONNAIRE_STAGES = ["IDEA", "DRAFT", "SUPERVISOR REVIEW", "PILOT", "REVISED", "PUBLISHED", "COLLECTING RESPONSES", "CLOSED"];
 function QuestionnaireTab({ ctx }) {
-  const { thesis, saveThesis, addXP } = ctx;
+  const { thesis, saveThesis, addXP, notify } = ctx;
   const q = thesis.questionnaire;
   function patch(p) { saveThesis((prev) => ({ ...prev, questionnaire: { ...prev.questionnaire, ...p } })); }
   const [showQForm, setShowQForm] = useState(false);
   const [qItem, setQItem] = useState(null);
 
   function blankQ() { return { id: null, question: "", type: "Multiple choice", concept: "", why: "", options: "", status: "DRAFT", notes: "" }; }
-  function upsertQ(v) { saveThesis((prev) => ({ ...prev, questionBank: prev.questionBank.some((x) => x.id === v.id) ? prev.questionBank.map((x) => (x.id === v.id ? v : x)) : [v, ...prev.questionBank] })); }
-  function removeQ(id) { saveThesis((prev) => ({ ...prev, questionBank: prev.questionBank.filter((x) => x.id !== id) })); }
+  function upsertQ(v) {
+    const isNew = !thesis.questionBank.some((x) => x.id === v.id);
+    saveThesis((prev) => ({ ...prev, questionBank: prev.questionBank.some((x) => x.id === v.id) ? prev.questionBank.map((x) => (x.id === v.id ? v : x)) : [v, ...prev.questionBank] }));
+    notify(isNew ? "Question added" : "Question updated");
+  }
+  function removeQ(id) {
+    const removed = thesis.questionBank.find((x) => x.id === id);
+    saveThesis((prev) => ({ ...prev, questionBank: prev.questionBank.filter((x) => x.id !== id) }));
+    notify("Question removed", () => saveThesis((prev) => (prev.questionBank.some((x) => x.id === id) ? prev : { ...prev, questionBank: [removed, ...prev.questionBank] })));
+  }
+  const canSaveQ = !!(qItem && qItem.question.trim());
 
   return (
     <div>
@@ -1118,19 +1204,21 @@ function QuestionnaireTab({ ctx }) {
         <button className="pt-btn pt-btn-primary" onClick={() => { setQItem(blankQ()); setShowQForm(true); }}><Plus size={14} /> Add question</button>
       </div>
       {thesis.questionBank.length === 0 ? <EmptyState text="No questions yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Question</th><th>Type</th><th>Concept → RQ</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {thesis.questionBank.map((qb) => (
-              <tr key={qb.id}>
-                <td style={{ maxWidth: 260 }}>{qb.question}</td><td>{qb.type}</td><td>{qb.concept}</td>
-                <td><StatusPill status={qb.status} /></td>
-                <td><button className="pt-btn pt-btn-ghost" onClick={() => { setQItem(qb); setShowQForm(true); }}><Edit3 size={14} /></button>
-                <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => removeQ(qb.id)}><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Question</th><th>Type</th><th>Concept → RQ</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {thesis.questionBank.map((qb) => (
+                <tr key={qb.id}>
+                  <td style={{ maxWidth: 260 }}>{qb.question}</td><td>{qb.type}</td><td>{qb.concept}</td>
+                  <td><StatusPill status={qb.status} /></td>
+                  <td><button className="pt-btn pt-btn-ghost" onClick={() => { setQItem(qb); setShowQForm(true); }}><Edit3 size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => removeQ(qb.id)}><Trash2 size={14} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>This questionnaire is not claimed to be scientifically validated — use Supervisor Review and Pilot stages to validate it.</div>
 
@@ -1153,7 +1241,8 @@ function QuestionnaireTab({ ctx }) {
           <Field label="Why this question is included"><textarea className="pt-textarea" value={qItem.why} onChange={(e) => setQItem({ ...qItem, why: e.target.value })} /></Field>
           <Field label="Response options"><input className="pt-input" value={qItem.options} onChange={(e) => setQItem({ ...qItem, options: e.target.value })} /></Field>
           <Field label="Notes"><textarea className="pt-textarea" value={qItem.notes} onChange={(e) => setQItem({ ...qItem, notes: e.target.value })} /></Field>
-          <button className="pt-btn pt-btn-primary" onClick={() => { upsertQ({ ...qItem, id: qItem.id || uid() }); setShowQForm(false); }}>Save question</button>
+          {!canSaveQ && <div className="pt-field-error">Question text is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveQ} onClick={() => { upsertQ({ ...qItem, id: qItem.id || uid() }); setShowQForm(false); }}>Save question</button>
         </Modal>
       )}
     </div>
@@ -1161,7 +1250,7 @@ function QuestionnaireTab({ ctx }) {
 }
 
 function SupervisorTab({ ctx }) {
-  const { thesis, saveThesis } = ctx;
+  const { thesis, saveThesis, notify } = ctx;
   const sup = thesis.supervisor;
   const [meetingNotes, setMeetingNotes] = useState("");
   const [feedbackDraft, setFeedbackDraft] = useState("");
@@ -1173,6 +1262,7 @@ function SupervisorTab({ ctx }) {
     if (!meetingNotes.trim()) return;
     saveThesis((prev) => ({ ...prev, supervisor: { ...prev.supervisor, meetings: [{ id: uid(), date: todayISO(), notes: meetingNotes, feedback: [] }, ...prev.supervisor.meetings] } }));
     setMeetingNotes("");
+    notify("Meeting logged");
   }
   function addFeedback(meetingId) {
     if (!feedbackDraft.trim()) return;
@@ -1183,6 +1273,7 @@ function SupervisorTab({ ctx }) {
       },
     }));
     setFeedbackDraft("");
+    notify("Feedback added");
   }
   function convertToTask(meetingId, fbId, text, calendarSave) {
     saveThesis((prev) => ({
@@ -1192,6 +1283,7 @@ function SupervisorTab({ ctx }) {
       },
     }));
     calendarSave((prev) => ({ ...prev, tasks: [{ id: uid(), title: text, date: todayISO(), time: "", duration: 30, category: "Thesis", priority: "High", notes: "From supervisor feedback", completed: false, recurrence: "none" }, ...prev.tasks] }));
+    notify("Added to calendar");
   }
 
   return (
@@ -1201,7 +1293,7 @@ function SupervisorTab({ ctx }) {
           <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Meeting preparation checklist</div>
           {sup.checklist.map((c) => (
             <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0" }}>
-              <button className="pt-btn-ghost pt-btn" style={{ padding: 0, border: "none" }} onClick={() => toggleChecklist(c.id)}>
+              <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => toggleChecklist(c.id)}>
                 {c.done ? <CheckCircle2 size={16} color="var(--ontrack)" /> : <Circle size={16} color="var(--ink-faint)" />}
               </button>
               <span style={{ fontSize: 13.5, textDecoration: c.done ? "line-through" : "none", color: c.done ? "var(--ink-faint)" : "var(--ink)" }}>{c.label}</span>
@@ -1211,7 +1303,7 @@ function SupervisorTab({ ctx }) {
         <div className="pt-card">
           <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Log a meeting</div>
           <textarea className="pt-textarea" placeholder="Meeting notes…" value={meetingNotes} onChange={(e) => setMeetingNotes(e.target.value)} style={{ minHeight: 100 }} />
-          <button className="pt-btn pt-btn-primary" style={{ marginTop: 10 }} onClick={logMeeting}><Plus size={14} /> Log meeting</button>
+          <button className="pt-btn pt-btn-primary" style={{ marginTop: 10 }} disabled={!meetingNotes.trim()} onClick={logMeeting}><Plus size={14} /> Log meeting</button>
         </div>
       </div>
 
@@ -1230,7 +1322,7 @@ function SupervisorTab({ ctx }) {
             ))}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
               <input className="pt-input" placeholder="Add feedback point…" value={feedbackDraft} onChange={(e) => setFeedbackDraft(e.target.value)} />
-              <button className="pt-btn" onClick={() => addFeedback(m.id)}><Plus size={14} /></button>
+              <button className="pt-btn" disabled={!feedbackDraft.trim()} onClick={() => addFeedback(m.id)}><Plus size={14} /></button>
             </div>
           </div>
         ))}
@@ -1246,12 +1338,21 @@ function SupervisorTab({ ctx }) {
 
 const OUTPUT_STATUSES = ["IDEA", "PREPARING", "SUBMITTED", "UNDER REVIEW", "ACCEPTED", "PUBLISHED"];
 function OutputsTab({ ctx }) {
-  const { thesis, saveThesis } = ctx;
+  const { thesis, saveThesis, notify } = ctx;
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
   function blank() { return { id: null, type: "Conference abstract", title: "", status: "IDEA", notes: "" }; }
-  function upsert(v) { saveThesis((prev) => ({ ...prev, outputs: prev.outputs.some((o) => o.id === v.id) ? prev.outputs.map((o) => (o.id === v.id ? v : o)) : [v, ...prev.outputs] })); }
-  function remove(id) { saveThesis((prev) => ({ ...prev, outputs: prev.outputs.filter((o) => o.id !== id) })); }
+  function upsert(v) {
+    const isNew = !thesis.outputs.some((o) => o.id === v.id);
+    saveThesis((prev) => ({ ...prev, outputs: prev.outputs.some((o) => o.id === v.id) ? prev.outputs.map((o) => (o.id === v.id ? v : o)) : [v, ...prev.outputs] }));
+    notify(isNew ? "Output added" : "Output updated");
+  }
+  function remove(id) {
+    const removed = thesis.outputs.find((o) => o.id === id);
+    saveThesis((prev) => ({ ...prev, outputs: prev.outputs.filter((o) => o.id !== id) }));
+    notify("Output removed", () => saveThesis((prev) => (prev.outputs.some((o) => o.id === id) ? prev : { ...prev, outputs: [removed, ...prev.outputs] })));
+  }
+  const canSaveOutput = !!(item && item.title.trim());
   return (
     <div>
       <p className="pt-sub" style={{ marginBottom: 14 }}>Goal: conference participation and/or publication-related progress by early October. Publication is not assumed — this simply tracks where things stand.</p>
@@ -1259,16 +1360,18 @@ function OutputsTab({ ctx }) {
         <button className="pt-btn pt-btn-primary" onClick={() => { setItem(blank()); setShowForm(true); }}><Plus size={14} /> Add output</button>
       </div>
       {thesis.outputs.length === 0 ? <EmptyState text="Nothing tracked yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Type</th><th>Title</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {thesis.outputs.map((o) => (
-              <tr key={o.id}><td>{o.type}</td><td>{o.title}</td><td><StatusPill status={o.status} /></td>
-                <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(o); setShowForm(true); }}><Edit3 size={14} /></button>
-                <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(o.id)}><Trash2 size={14} /></button></td></tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Type</th><th>Title</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {thesis.outputs.map((o) => (
+                <tr key={o.id}><td>{o.type}</td><td>{o.title}</td><td><StatusPill status={o.status} /></td>
+                  <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(o); setShowForm(true); }}><Edit3 size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(o.id)}><Trash2 size={14} /></button></td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {showForm && (
         <Modal title="Research output" onClose={() => setShowForm(false)}>
@@ -1284,7 +1387,8 @@ function OutputsTab({ ctx }) {
             </select>
           </Field>
           <Field label="Notes"><textarea className="pt-textarea" value={item.notes} onChange={(e) => setItem({ ...item, notes: e.target.value })} /></Field>
-          <button className="pt-btn pt-btn-primary" onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
+          {!canSaveOutput && <div className="pt-field-error">Title is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveOutput} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
         </Modal>
       )}
     </div>
@@ -1293,7 +1397,7 @@ function OutputsTab({ ctx }) {
 
 const TIME_CATEGORIES = ["Literature Review", "Framework", "Case Studies", "Observation", "Questionnaire", "Interviews", "Writing", "Supervisor", "Other"];
 function TimeTrackingTab({ ctx }) {
-  const { thesis, saveThesis, addXP } = ctx;
+  const { thesis, saveThesis, addXP, notify } = ctx;
   const [form, setForm] = useState({ date: todayISO(), task: "", category: TIME_CATEGORIES[0], minutes: 30, notes: "" });
 
   function add() {
@@ -1302,7 +1406,11 @@ function TimeTrackingTab({ ctx }) {
     addXP(Math.min(30, Math.round(form.minutes / 10)), "Thesis time logged");
     setForm({ date: todayISO(), task: "", category: form.category, minutes: 30, notes: "" });
   }
-  function remove(id) { saveThesis((prev) => ({ ...prev, timeLog: prev.timeLog.filter((t) => t.id !== id) })); }
+  function remove(id) {
+    const removed = thesis.timeLog.find((t) => t.id === id);
+    saveThesis((prev) => ({ ...prev, timeLog: prev.timeLog.filter((t) => t.id !== id) }));
+    notify("Time entry removed", () => saveThesis((prev) => (prev.timeLog.some((t) => t.id === id) ? prev : { ...prev, timeLog: [removed, ...prev.timeLog] })));
+  }
 
   const weeklyTotals = useMemo(() => {
     const totals = {};
@@ -1325,7 +1433,8 @@ function TimeTrackingTab({ ctx }) {
         </div>
         <Field label="Task"><input className="pt-input" value={form.task} onChange={(e) => setForm({ ...form, task: e.target.value })} /></Field>
         <Field label="Notes"><input className="pt-input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
-        <button className="pt-btn pt-btn-primary" onClick={add}><Plus size={14} /> Add entry</button>
+        {!form.task.trim() && <div className="pt-field-error">Task is required.</div>}
+        <button className="pt-btn pt-btn-primary" disabled={!form.task.trim()} onClick={add}><Plus size={14} /> Add entry</button>
       </div>
 
       {weeklyTotals.length > 0 && (
@@ -1340,15 +1449,17 @@ function TimeTrackingTab({ ctx }) {
       )}
 
       {thesis.timeLog.length === 0 ? <EmptyState text="No time logged yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Date</th><th>Task</th><th>Category</th><th>Time</th><th></th></tr></thead>
-          <tbody>
-            {thesis.timeLog.map((t) => (
-              <tr key={t.id}><td>{fmtDate(t.date)}</td><td>{t.task}</td><td>{t.category}</td><td>{Math.floor(t.minutes / 60)}h {t.minutes % 60}m</td>
-                <td><button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(t.id)}><Trash2 size={14} /></button></td></tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Date</th><th>Task</th><th>Category</th><th>Time</th><th></th></tr></thead>
+            <tbody>
+              {thesis.timeLog.map((t) => (
+                <tr key={t.id}><td>{fmtDate(t.date)}</td><td>{t.task}</td><td>{t.category}</td><td>{Math.floor(t.minutes / 60)}h {t.minutes % 60}m</td>
+                  <td><button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(t.id)}><Trash2 size={14} /></button></td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -1379,11 +1490,12 @@ function GoalsScreen({ ctx }) {
 
 const INTERNSHIP_STATUSES = ["RESEARCHING", "CONTACTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED"];
 function InternshipTab({ ctx }) {
-  const { goals, saveGoals, addXP } = ctx;
+  const { goals, saveGoals, addXP, notify } = ctx;
   const intern = goals.internship;
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
   const [showActivate, setShowActivate] = useState(false);
+  const [confirmActivate, setConfirmActivate] = useState(false);
   const [actForm, setActForm] = useState({ company: "", position: "", start: "", end: "" });
 
   const thisWeekCount = useMemo(() => {
@@ -1392,15 +1504,23 @@ function InternshipTab({ ctx }) {
   }, [intern.applications]);
 
   function blank() { return { id: null, company: "", position: "", date: todayISO(), status: "RESEARCHING", link: "", notes: "" }; }
-  function upsert(v) {
+  function upsert(v, silent) {
     const isNew = !intern.applications.some((a) => a.id === v.id);
     saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, applications: isNew ? [v, ...prev.internship.applications] : prev.internship.applications.map((a) => (a.id === v.id ? v : a)) } }));
     if (isNew) addXP(10, "Internship application tracked");
+    else if (!silent) notify("Application updated");
   }
-  function remove(id) { saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, applications: prev.internship.applications.filter((a) => a.id !== id) } })); }
+  function remove(id) {
+    const removed = intern.applications.find((a) => a.id === id);
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, applications: prev.internship.applications.filter((a) => a.id !== id) } }));
+    notify("Application removed", () => saveGoals((prev) => (prev.internship.applications.some((a) => a.id === id) ? prev : { ...prev, internship: { ...prev.internship, applications: [removed, ...prev.internship.applications] } })));
+  }
+  const canSaveApp = !!(item && item.company.trim());
+  const canActivate = actForm.company.trim().length > 0;
 
   function activate() {
     saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...actForm, attendance: [], projects: [], skills: [], deliverables: [], notes: [] } } }));
+    setConfirmActivate(false);
     setShowActivate(false);
     addXP(75, "Internship activated!");
   }
@@ -1420,23 +1540,25 @@ function InternshipTab({ ctx }) {
         </div>
       </div>
       {intern.applications.length === 0 ? <EmptyState text="No applications tracked yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Company</th><th>Position</th><th>Date</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {intern.applications.map((a) => (
-              <tr key={a.id}>
-                <td style={{ fontWeight: 600 }}>{a.company}</td><td>{a.position}</td><td>{fmtDate(a.date)}</td>
-                <td>
-                  <select className="pt-select" style={{ width: 130 }} value={a.status} onChange={(e) => upsert({ ...a, status: e.target.value })}>
-                    {INTERNSHIP_STATUSES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
-                <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(a.id)}><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Company</th><th>Position</th><th>Date</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {intern.applications.map((a) => (
+                <tr key={a.id}>
+                  <td style={{ fontWeight: 600 }}>{a.company}</td><td>{a.position}</td><td>{fmtDate(a.date)}</td>
+                  <td>
+                    <select className="pt-select" style={{ width: 130 }} value={a.status} onChange={(e) => upsert({ ...a, status: e.target.value }, true)}>
+                      {INTERNSHIP_STATUSES.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(a.id)}><Trash2 size={14} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {showForm && (
         <Modal title="Internship application" onClose={() => setShowForm(false)}>
@@ -1454,7 +1576,8 @@ function InternshipTab({ ctx }) {
           </div>
           <Field label="Link"><input className="pt-input" value={item.link} onChange={(e) => setItem({ ...item, link: e.target.value })} /></Field>
           <Field label="Notes"><textarea className="pt-textarea" value={item.notes} onChange={(e) => setItem({ ...item, notes: e.target.value })} /></Field>
-          <button className="pt-btn pt-btn-primary" onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
+          {!canSaveApp && <div className="pt-field-error">Company is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveApp} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
         </Modal>
       )}
       {showActivate && (
@@ -1465,15 +1588,25 @@ function InternshipTab({ ctx }) {
             <Field label="Start date"><input type="date" className="pt-input" value={actForm.start} onChange={(e) => setActForm({ ...actForm, start: e.target.value })} /></Field>
             <Field label="End date"><input type="date" className="pt-input" value={actForm.end} onChange={(e) => setActForm({ ...actForm, end: e.target.value })} /></Field>
           </div>
-          <button className="pt-btn pt-btn-primary" onClick={activate}>Switch to My Internship</button>
+          {!canActivate && <div className="pt-field-error">Company is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canActivate} onClick={() => setConfirmActivate(true)}>Switch to My Internship</button>
         </Modal>
+      )}
+      {confirmActivate && (
+        <ConfirmDialog
+          title="Switch to active internship tracking?"
+          message="This replaces the applications tracker above with day-to-day internship logging (attendance, projects, skills, deliverables). This can't be switched back from here."
+          confirmLabel="Switch"
+          onConfirm={activate}
+          onCancel={() => setConfirmActivate(false)}
+        />
       )}
     </div>
   );
 }
 
 function ActiveInternship({ internship, ctx }) {
-  const { saveGoals } = ctx;
+  const { saveGoals, notify } = ctx;
   const [entry, setEntry] = useState("");
   const [kind, setKind] = useState("notes");
   const kinds = { attendance: "Attendance", projects: "Projects", skills: "Skills learned", deliverables: "Deliverables", notes: "Notes / Achievements" };
@@ -1482,6 +1615,7 @@ function ActiveInternship({ internship, ctx }) {
     if (!entry.trim()) return;
     saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...prev.internship.active, [kind]: [...prev.internship.active[kind], { id: uid(), text: entry, date: todayISO() }] } } }));
     setEntry("");
+    notify(`${kinds[kind]} entry added`);
   }
 
   return (
@@ -1495,8 +1629,8 @@ function ActiveInternship({ internship, ctx }) {
           <select className="pt-select" style={{ width: 200 }} value={kind} onChange={(e) => setKind(e.target.value)}>
             {Object.entries(kinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
-          <input className="pt-input" placeholder="Add entry…" value={entry} onChange={(e) => setEntry(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} />
-          <button className="pt-btn pt-btn-primary" onClick={addEntry}><Plus size={14} /></button>
+          <input className="pt-input" placeholder="Add entry…" value={entry} onChange={(e) => setEntry(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && entry.trim()) addEntry(); }} />
+          <button className="pt-btn pt-btn-primary" disabled={!entry.trim()} onClick={addEntry}><Plus size={14} /></button>
         </div>
       </div>
       <div className="pt-grid2">
@@ -1531,16 +1665,13 @@ function FrenchTab({ ctx }) {
 }
 
 function FrenchToday({ ctx }) {
-  const { goals, saveGoals, addXP } = ctx;
+  const { goals, saveGoals, addXP, notify } = ctx;
   const french = goals.french;
   const lesson = french.lessons.find((l) => l.status !== "COMPLETED") || french.lessons[french.lessons.length - 1];
   const [minutes, setMinutes] = useState(lesson?.minutesSpent || 0);
 
   function markComplete() {
-    saveGoals((prev) => {
-      const lessons = prev.goals?.french?.lessons; // guard unused
-      return prev;
-    });
+    const prevFrench = french;
     saveGoals((prev) => {
       const idx = prev.french.lessons.findIndex((l) => l.id === lesson.id);
       const wasCompleted = prev.french.lessons[idx].status === "COMPLETED";
@@ -1549,9 +1680,10 @@ function FrenchToday({ ctx }) {
       const streak = wasCompleted ? prev.french.streak : (prev.french.streak || 0) + 1;
       return { ...prev, french: { ...prev.french, lessons: nextLessons, streak, daysStudied: (prev.french.daysStudied || 0) + (wasCompleted ? 0 : 1), totalMinutes: (prev.french.totalMinutes || 0) + Number(minutes) } };
     });
-    addXP(25, "French lesson completed");
+    addXP(25, "French lesson completed", () => saveGoals((prev) => ({ ...prev, french: prevFrench })));
   }
   function missedToday() {
+    const prevFrench = french;
     saveGoals((prev) => {
       const idx = prev.french.lessons.findIndex((l) => l.id === lesson.id);
       const nextLessons = [...prev.french.lessons];
@@ -1561,6 +1693,7 @@ function FrenchToday({ ctx }) {
       }
       return { ...prev, french: { ...prev.french, lessons: nextLessons, streak: 0 } };
     });
+    notify("Schedule pushed forward, streak reset", () => saveGoals((prev) => ({ ...prev, french: prevFrench })));
   }
 
   if (!lesson) return <EmptyState text="Curriculum complete." />;
@@ -1672,7 +1805,7 @@ function FrenchCurriculum({ ctx }) {
 }
 
 function FrenchVocab({ ctx }) {
-  const { goals, saveGoals } = ctx;
+  const { goals, saveGoals, notify } = ctx;
   const french = goals.french;
   const [form, setForm] = useState({ fr: "", en: "", pronunciation: "", example: "", category: "" });
 
@@ -1680,12 +1813,17 @@ function FrenchVocab({ ctx }) {
     if (!form.fr.trim()) return;
     saveGoals((prev) => ({ ...prev, french: { ...prev.french, vocabBank: [{ id: uid(), ...form, status: "NEW", addedDate: todayISO(), lastReviewed: null }, ...prev.french.vocabBank] } }));
     setForm({ fr: "", en: "", pronunciation: "", example: "", category: "" });
+    notify("Word added to bank");
   }
   function cycleStatus(id) {
     const order = ["NEW", "LEARNING", "KNOWN", "NEEDS REVIEW"];
     saveGoals((prev) => ({ ...prev, french: { ...prev.french, vocabBank: prev.french.vocabBank.map((v) => v.id === id ? { ...v, status: order[(order.indexOf(v.status) + 1) % order.length], lastReviewed: todayISO() } : v) } }));
   }
-  function remove(id) { saveGoals((prev) => ({ ...prev, french: { ...prev.french, vocabBank: prev.french.vocabBank.filter((v) => v.id !== id) } })); }
+  function remove(id) {
+    const removed = french.vocabBank.find((v) => v.id === id);
+    saveGoals((prev) => ({ ...prev, french: { ...prev.french, vocabBank: prev.french.vocabBank.filter((v) => v.id !== id) } }));
+    notify("Word removed", () => saveGoals((prev) => (prev.french.vocabBank.some((v) => v.id === id) ? prev : { ...prev, french: { ...prev.french, vocabBank: [removed, ...prev.french.vocabBank] } })));
+  }
 
   // simple spaced repetition surfacing: words not reviewed in 4+ days, or NEW
   const dueForReview = french.vocabBank.filter((v) => v.status !== "KNOWN" && (!v.lastReviewed || daysBetween(v.lastReviewed, todayISO()) >= 4));
@@ -1713,21 +1851,24 @@ function FrenchVocab({ ctx }) {
           <Field label="Pronunciation"><input className="pt-input" value={form.pronunciation} onChange={(e) => setForm({ ...form, pronunciation: e.target.value })} /></Field>
           <Field label="Example sentence"><input className="pt-input" value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} /></Field>
         </div>
-        <button className="pt-btn pt-btn-primary" onClick={add}><Plus size={14} /> Add to bank</button>
+        {!form.fr.trim() && <div className="pt-field-error">French word is required.</div>}
+        <button className="pt-btn pt-btn-primary" disabled={!form.fr.trim()} onClick={add}><Plus size={14} /> Add to bank</button>
       </div>
       {french.vocabBank.length === 0 ? <EmptyState text="No vocabulary logged yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>French</th><th>English</th><th>Category</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {french.vocabBank.map((v) => (
-              <tr key={v.id}>
-                <td style={{ fontWeight: 600 }}>{v.fr}</td><td>{v.en}</td><td>{v.category}</td>
-                <td style={{ cursor: "pointer" }} onClick={() => cycleStatus(v.id)}><StatusPill status={v.status} /></td>
-                <td><button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(v.id)}><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>French</th><th>English</th><th>Category</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {french.vocabBank.map((v) => (
+                <tr key={v.id}>
+                  <td style={{ fontWeight: 600 }}>{v.fr}</td><td>{v.en}</td><td>{v.category}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => cycleStatus(v.id)}><StatusPill status={v.status} /></td>
+                  <td><button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(v.id)}><Trash2 size={14} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -1834,12 +1975,14 @@ function ChineseTab({ ctx }) {
         <button className="pt-btn pt-btn-primary" onClick={logToday}><Plus size={14} /> Log today's study</button>
       </div>
       {chinese.logs.length === 0 ? <EmptyState text="No study sessions logged yet." /> : (
-        <table className="pt-table">
-          <thead><tr><th>Date</th><th>Words</th><th>Time</th><th>Notes</th></tr></thead>
-          <tbody>
-            {chinese.logs.map((l) => (<tr key={l.id}><td>{fmtDate(l.date)}</td><td>{l.wordsLearned}</td><td>{l.minutesSpent}m</td><td>{l.notes}</td></tr>))}
-          </tbody>
-        </table>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Date</th><th>Words</th><th>Time</th><th>Notes</th></tr></thead>
+            <tbody>
+              {chinese.logs.map((l) => (<tr key={l.id}><td>{fmtDate(l.date)}</td><td>{l.wordsLearned}</td><td>{l.minutesSpent}m</td><td>{l.notes}</td></tr>))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -1862,9 +2005,15 @@ function UrbanismTab({ ctx }) {
       <div className="pt-card" style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 16 }}>
           {p.stages.map((s, i) => (
-            <div key={s} className="pt-chip" style={{ background: i <= idx ? "var(--urbanism)" : "var(--line-soft)", color: i <= idx ? "#fff" : "var(--ink-soft)" }}>{s}</div>
+            <div
+              key={s}
+              className="pt-chip"
+              onClick={i <= idx ? () => patch({ stage: s }) : undefined}
+              style={{ background: i <= idx ? "var(--urbanism)" : "var(--line-soft)", color: i <= idx ? "#fff" : "var(--ink-soft)", cursor: i <= idx ? "pointer" : "default" }}
+            >{s}</div>
           ))}
         </div>
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 10 }}>Tap an earlier stage to go back to it.</div>
         <ProgressBar pct={((idx + 1) / p.stages.length) * 100} color="var(--urbanism)" />
         {idx < p.stages.length - 1 && <button className="pt-btn pt-btn-primary" style={{ marginTop: 14 }} onClick={advance}>Advance to: {p.stages[idx + 1]} <ChevronRight size={14} /></button>}
       </div>
@@ -1892,19 +2041,28 @@ function UrbanismTab({ ctx }) {
    ========================================================================= */
 const TASK_CATEGORIES = ["Thesis", "Internship", "French", "Chinese", "Urbanism", "Personal", "Other"];
 function CalendarScreen({ ctx }) {
-  const { calendar, saveCalendar, addXP } = ctx;
+  const { calendar, saveCalendar, addXP, notify } = ctx;
   const [view, setView] = useState("agenda");
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
   const [monthCursor, setMonthCursor] = useState(() => { const d = parseISO(todayISO()); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); });
 
   function blank() { return { id: null, title: "", date: todayISO(), time: "", duration: 30, category: "Personal", priority: "Medium", notes: "", completed: false, recurrence: "none" }; }
-  function upsert(v) { saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.some((t) => t.id === v.id) ? prev.tasks.map((t) => (t.id === v.id ? v : t)) : [v, ...prev.tasks] })); }
-  function remove(id) { saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== id) })); }
+  function upsert(v, silent) {
+    const isNew = !calendar.tasks.some((t) => t.id === v.id);
+    saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.some((t) => t.id === v.id) ? prev.tasks.map((t) => (t.id === v.id ? v : t)) : [v, ...prev.tasks] }));
+    if (!silent) notify(isNew ? "Task added" : "Task updated");
+  }
+  function remove(id) {
+    const removed = calendar.tasks.find((t) => t.id === id);
+    saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== id) }));
+    notify("Task removed", () => saveCalendar((prev) => (prev.tasks.some((t) => t.id === id) ? prev : { ...prev, tasks: [removed, ...prev.tasks] })));
+  }
   function toggleComplete(t) {
-    upsert({ ...t, completed: !t.completed });
+    upsert({ ...t, completed: !t.completed }, true);
     if (!t.completed) addXP(10, "Task completed");
   }
+  const canSaveTask = !!(item && item.title.trim());
 
   const sorted = [...calendar.tasks].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
@@ -1929,7 +2087,7 @@ function CalendarScreen({ ctx }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {sorted.map((t) => (
               <div key={t.id} className="pt-card pt-card-tight" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <button className="pt-btn-ghost pt-btn" style={{ padding: 0, border: "none" }} onClick={() => toggleComplete(t)}>
+                <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => toggleComplete(t)}>
                   {t.completed ? <CheckCircle2 size={17} color="var(--ontrack)" /> : <Circle size={17} color="var(--ink-faint)" />}
                 </button>
                 <div style={{ flex: 1, cursor: "pointer" }} onClick={() => { setItem(t); setShowForm(true); }}>
@@ -1937,7 +2095,7 @@ function CalendarScreen({ ctx }) {
                   <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>{fmtDate(t.date)} {t.time && `· ${t.time}`} · {t.category}</div>
                 </div>
                 <span className="pt-chip">{t.priority}</span>
-                <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(t.id)}><Trash2 size={14} /></button>
+                <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => remove(t.id)}><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -1970,8 +2128,9 @@ function CalendarScreen({ ctx }) {
             </select>
           </Field>
           <Field label="Notes"><textarea className="pt-textarea" value={item.notes} onChange={(e) => setItem({ ...item, notes: e.target.value })} /></Field>
+          {!canSaveTask && <div className="pt-field-error">Title is required.</div>}
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="pt-btn pt-btn-primary" onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save task</button>
+            <button className="pt-btn pt-btn-primary" disabled={!canSaveTask} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save task</button>
             {item.id && <button className="pt-btn pt-btn-danger" onClick={() => { remove(item.id); setShowForm(false); }}>Delete</button>}
           </div>
         </Modal>
@@ -2047,7 +2206,7 @@ function DayView({ tasks, onToggle, onSelect }) {
       <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>{fmtDate(today)}</div>
       {dayTasks.length === 0 ? <EmptyState text="Nothing scheduled today." /> : dayTasks.map((t) => (
         <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--line-soft)" }}>
-          <button className="pt-btn-ghost pt-btn" style={{ padding: 0, border: "none" }} onClick={() => onToggle(t)}>{t.completed ? <CheckCircle2 size={17} color="var(--ontrack)" /> : <Circle size={17} color="var(--ink-faint)" />}</button>
+          <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => onToggle(t)}>{t.completed ? <CheckCircle2 size={17} color="var(--ontrack)" /> : <Circle size={17} color="var(--ink-faint)" />}</button>
           <span style={{ width: 50, fontSize: 12, color: "var(--ink-faint)" }}>{t.time || "—"}</span>
           <span style={{ flex: 1, cursor: "pointer", fontSize: 13.5 }} onClick={() => onSelect(t)}>{t.title}</span>
           <span className="pt-chip">{t.category}</span>
@@ -2061,7 +2220,7 @@ function DayView({ tasks, onToggle, onSelect }) {
    PROGRESS SCREEN (Weekly Review + XP)
    ========================================================================= */
 function ProgressScreen({ ctx }) {
-  const { meta, saveMeta, thesis, goals, calendar, settings } = ctx;
+  const { meta, saveMeta, thesis, goals, calendar, settings, notify } = ctx;
   const [reviewDraft, setReviewDraft] = useState({ achievement: "", nextWeek: ["", "", ""] });
 
   const weekAgo = addDays(todayISO(), -7);
@@ -2076,8 +2235,10 @@ function ProgressScreen({ ctx }) {
   const portfolioP = computePortfolioProgress(goals.urbanism || goals.portfolio);
 
   function saveReview() {
+    if (!reviewDraft.achievement.trim()) return;
     saveMeta((prev) => ({ ...prev, weeklyReviews: [{ id: uid(), date: todayISO(), ...reviewDraft }, ...prev.weeklyReviews] }));
     setReviewDraft({ achievement: "", nextWeek: ["", "", ""] });
+    notify("Weekly review saved");
   }
 
   const xpData = useMemo(() => {
@@ -2127,21 +2288,20 @@ function ProgressScreen({ ctx }) {
         {reviewDraft.nextWeek.map((v, i) => (
           <input key={i} className="pt-input" style={{ marginBottom: 8 }} value={v} onChange={(e) => { const nw = [...reviewDraft.nextWeek]; nw[i] = e.target.value; setReviewDraft({ ...reviewDraft, nextWeek: nw }); }} />
         ))}
-        <button className="pt-btn pt-btn-primary" onClick={saveReview}><Check size={14} /> Save weekly review</button>
+        {!reviewDraft.achievement.trim() && <div className="pt-field-error">Biggest achievement is required.</div>}
+        <button className="pt-btn pt-btn-primary" disabled={!reviewDraft.achievement.trim()} onClick={saveReview}><Check size={14} /> Save weekly review</button>
       </div>
 
-      {meta.weeklyReviews.length > 0 && (
-        <div>
-          <div className="pt-h2" style={{ fontSize: 15, marginBottom: 10 }}>Past reviews</div>
-          {meta.weeklyReviews.map((r) => (
-            <div key={r.id} className="pt-card pt-card-tight" style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 }}>{fmtDate(r.date)}</div>
-              <div style={{ fontSize: 13 }}>{r.achievement}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>Next: {r.nextWeek.filter(Boolean).join(" · ")}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 10 }}>Past reviews</div>
+        {meta.weeklyReviews.length === 0 ? <EmptyState text="No past reviews yet." /> : meta.weeklyReviews.map((r) => (
+          <div key={r.id} className="pt-card pt-card-tight" style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 }}>{fmtDate(r.date)}</div>
+            <div style={{ fontSize: 13 }}>{r.achievement}</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>Next: {r.nextWeek.filter(Boolean).join(" · ")}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2150,8 +2310,10 @@ function ProgressScreen({ ctx }) {
    SETTINGS SCREEN
    ========================================================================= */
 function SettingsScreen({ ctx }) {
-  const { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, onSignOut } = ctx;
-  const [msg, setMsg] = useState("");
+  const { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, onSignOut, notify } = ctx;
+  const [importError, setImportError] = useState("");
+  const [pendingImport, setPendingImport] = useState(null);
+  const fileInputRef = useRef(null);
 
   function exportData() {
     const bundle = { exportedAt: new Date().toISOString(), settings, thesis, goals, calendar, meta };
@@ -2161,27 +2323,36 @@ function SettingsScreen({ ctx }) {
     a.href = url; a.download = `productivity-tracker-backup-${todayISO()}.json`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setMsg("Export downloaded.");
+    notify("Export downloaded");
   }
 
-  function importData(e) {
+  function pickImportFile(e) {
     const file = e.target.files[0];
     if (!file) return;
+    setImportError("");
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const bundle = JSON.parse(reader.result);
-        if (bundle.settings) saveSettings(bundle.settings);
-        if (bundle.thesis) saveThesis(bundle.thesis);
-        if (bundle.goals) saveGoals(bundle.goals);
-        if (bundle.calendar) saveCalendar(bundle.calendar);
-        if (bundle.meta) saveMeta(bundle.meta);
-        setMsg("Import complete.");
+        setPendingImport(bundle);
       } catch (err) {
-        setMsg("Import failed: file is not a valid backup.");
+        setImportError("Import failed: file is not a valid backup.");
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     };
     reader.readAsText(file);
+  }
+
+  function confirmImport() {
+    const bundle = pendingImport;
+    if (bundle.settings) saveSettings(bundle.settings);
+    if (bundle.thesis) saveThesis(bundle.thesis);
+    if (bundle.goals) saveGoals(bundle.goals);
+    if (bundle.calendar) saveCalendar(bundle.calendar);
+    if (bundle.meta) saveMeta(bundle.meta);
+    setPendingImport(null);
+    notify("Import complete");
   }
 
   return (
@@ -2204,14 +2375,14 @@ function SettingsScreen({ ctx }) {
 
       <div className="pt-card" style={{ marginBottom: 22 }}>
         <div className="pt-h2" style={{ fontSize: 15, marginBottom: 14 }}>Backup</div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="pt-btn pt-btn-primary" onClick={exportData}><Download size={14} /> Export data (JSON)</button>
           <label className="pt-btn" style={{ cursor: "pointer" }}>
             <Upload size={14} /> Import data
-            <input type="file" accept="application/json" style={{ display: "none" }} onChange={importData} />
+            <input ref={fileInputRef} type="file" accept="application/json" style={{ display: "none" }} onChange={pickImportFile} />
           </label>
         </div>
-        {msg && <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 10 }}>{msg}</div>}
+        {importError && <div className="pt-field-error" style={{ marginTop: 10, marginBottom: 0 }}>{importError}</div>}
       </div>
 
       <div className="pt-card" style={{ marginBottom: 22 }}>
@@ -2225,6 +2396,17 @@ function SettingsScreen({ ctx }) {
         <div className="pt-h2" style={{ fontSize: 15, marginBottom: 10 }}>Account</div>
         <button className="pt-btn" onClick={onSignOut}><LogOut size={14} /> Sign out</button>
       </div>
+
+      {pendingImport && (
+        <ConfirmDialog
+          title="Overwrite all current data?"
+          message="Importing this file replaces settings, thesis, goals, calendar and progress with the contents of the backup. Your current data will be lost. This can't be undone."
+          confirmLabel="Import and overwrite"
+          danger
+          onConfirm={confirmImport}
+          onCancel={() => setPendingImport(null)}
+        />
+      )}
     </div>
   );
 }
