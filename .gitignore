@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.local
+.DS_Store
+*.log
+
+# Personal / unrelated files kept locally, not versioned
+CV.pdf
+france2027-admission-tracker.html
