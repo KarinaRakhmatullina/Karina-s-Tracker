@@ -123,6 +123,12 @@ export const TOKENS = `
   .pt-btn-ghost{ border:none; background:none; padding:6px 8px; }
   .pt-btn-sm{ padding:5px 10px; font-size:12px; }
   .pt-btn-danger{ color:var(--behind); }
+  .pt-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+  .pt-btn:disabled:hover{ border-color:var(--line); opacity:0.45; }
+  .pt-btn-primary:disabled:hover{ border-color:var(--thesis); opacity:0.45; }
+
+  /* ---- touch target helper (icon-only controls) ---- */
+  .pt-tap{ min-width:36px; min-height:36px; display:inline-flex; align-items:center; justify-content:center; }
 
   /* ---- inputs ---- */
   .pt-input, .pt-select, .pt-textarea{
@@ -141,10 +147,14 @@ export const TOKENS = `
   .pt-tab.active{ color:var(--thesis); border-bottom-color:var(--thesis); }
 
   /* ---- table ---- */
+  .pt-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .pt-table{ width:100%; border-collapse:collapse; font-size:13px; }
-  .pt-table th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); }
+  .pt-table th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
   .pt-table td{ padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
   .pt-table tr:hover td{ background:var(--line-soft); }
+
+  /* ---- form validation ---- */
+  .pt-field-error{ color:var(--behind); font-size:12px; margin:-6px 0 12px; }
 
   /* ---- modal ---- */
   .pt-modal-backdrop{ position:fixed; inset:0; background:rgba(27,29,31,0.4); display:flex; align-items:flex-start; justify-content:center; z-index:100; overflow-y:auto; padding:40px 20px; }
@@ -159,12 +169,18 @@ export const TOKENS = `
   .pt-tl-line{ width:2px; flex:1; background:var(--line); margin:2px 0; }
   .pt-tl-content{ flex:1; padding-bottom:22px; }
 
-  /* xp toast */
+  /* xp / action toast */
   .pt-xp-toast{
     position:fixed; bottom:26px; right:26px; background:var(--ink); color:#fff; padding:12px 18px; border-radius:var(--radius-md);
     font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; box-shadow:var(--shadow-md); z-index:200;
-    animation: pt-toast-in .25s ease;
+    animation: pt-toast-in .25s ease; max-width:420px;
   }
+  .pt-xp-toast span{ flex:1; }
+  .pt-toast-undo{
+    background:rgba(255,255,255,0.16); border:none; color:#fff; font-weight:700; font-size:12px;
+    padding:5px 11px; border-radius:6px; cursor:pointer; flex-shrink:0; min-height:30px;
+  }
+  .pt-toast-undo:hover{ background:rgba(255,255,255,0.28); }
   @keyframes pt-toast-in{ from{ opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
 
   .pt-empty{ text-align:center; padding:40px 20px; color:var(--ink-faint); font-size:13.5px; }
@@ -178,6 +194,33 @@ export const TOKENS = `
   .pt-auth-toggle{ text-align:center; font-size:13px; color:var(--ink-soft); margin-top:16px; }
   .pt-spin{ animation: pt-spin-rot 1s linear infinite; }
   @keyframes pt-spin-rot{ to{ transform:rotate(360deg); } }
+
+  /* ---- mobile (phone-width PWA use) ---- */
+  @media (max-width:760px){
+    .pt-root{ flex-direction:column; }
+    .pt-sidebar{
+      width:100%; height:auto; position:sticky; top:0; z-index:40;
+      flex-direction:row; align-items:center; gap:2px;
+      padding:8px 10px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+      border-right:none; border-bottom:1px solid var(--line);
+    }
+    .pt-brand{ display:none; }
+    .pt-nav{ flex-direction:row; gap:2px; flex:0 0 auto; }
+    .pt-nav-item{ flex-direction:column; gap:3px; padding:8px 9px; font-size:10px; white-space:nowrap; min-width:56px; min-height:44px; text-align:center; justify-content:center; }
+    .pt-nav-sub{ flex-direction:row; margin-left:0; margin-top:0; margin-bottom:0; overflow-x:auto; gap:4px; padding-left:2px; }
+    .pt-nav-sub-item{ white-space:nowrap; padding:8px 10px; min-height:40px; display:flex; align-items:center; }
+    .pt-nav-divider{ display:none; }
+    .pt-sidebar-note, .pt-sidebar-spacer{ display:none; }
+    .pt-main{ padding:20px 16px 90px; max-width:100%; }
+
+    .pt-xp-toast{ left:16px; right:16px; max-width:none; }
+
+    .pt-modal-backdrop{ padding:16px 12px; }
+
+    /* larger touch targets for icon-only / compact controls */
+    .pt-btn-ghost{ min-width:38px; min-height:38px; }
+    .pt-btn-sm{ min-height:36px; padding:7px 12px; }
+  }
 `;
 
 /* =========================================================================
