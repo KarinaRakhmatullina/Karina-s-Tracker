@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  Home, GraduationCap, Target, Calendar as CalendarIcon, TrendingUp, Settings as SettingsIcon,
+  Home, Calendar as CalendarIcon, Settings as SettingsIcon,
   BookOpen, FlaskConical, Users, ClipboardList, MessageSquare, Mic, FileText, Clock,
-  Plus, X, Check, ChevronRight, ChevronLeft, Download, Upload, Sparkles, Flame,
-  AlertTriangle, CheckCircle2, Circle, Briefcase, Languages, Building2, Trophy,
-  BarChart3, Loader2, Edit3, Trash2, Info, LogOut
+  Plus, X, Check, ChevronRight, ChevronLeft, ChevronDown, Download, Upload, Sparkles,
+  AlertTriangle, CheckCircle2, Circle, Briefcase, Languages, Building2,
+  Loader2, Edit3, Trash2, Info, LogOut, Search, Paperclip, ExternalLink,
+  Lock, Table2, LayoutList
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TOKENS, FontLoader } from "./theme";
+import { supabase } from "./lib/supabaseClient";
 import { useStore } from "./lib/useStore";
 
 /* =========================================================================
@@ -42,43 +44,48 @@ function initSettings() {
   };
 }
 
-function initThesisRoadmap() {
-  const phases = [
-    { title: "Literature Review", start: "2026-08-15", end: "2026-08-21" },
-    { title: "Conceptual Framework", start: "2026-08-22", end: "2026-08-25" },
-    { title: "Case Studies", start: "2026-08-26", end: "2026-08-31" },
-    { title: "Observation Preparation + Initial Observation", start: "2026-09-01", end: "2026-09-05" },
-    { title: "Questionnaire Draft", start: "2026-09-01", end: "2026-09-05" },
-    { title: "Supervisor Review + Pilot", start: "2026-09-06", end: "2026-09-10" },
-    { title: "Questionnaire Launch + Data Collection", start: "2026-09-11", end: "2026-09-11" },
-    { title: "Midterm Preparation", start: "2026-09-11", end: "2026-09-30" },
-  ];
-  return phases.map((p, i) => ({ id: uid(), phaseNumber: i + 1, ...p, status: i === 0 ? "IN PROGRESS" : "NOT STARTED" }));
+/* -------------------------------------------------------------------------
+   THESIS — 11 freeform sections (01–11), each a list of editable text
+   blocks so multi-version content (e.g. RQ1/RQ2/RQ3 drafts) fits naturally
+   without rigid fields. Two of them (Methodology, Data Collection) embed
+   the structured sub-panels (Questionnaire, Case Studies, Observation).
+   ------------------------------------------------------------------------- */
+const THESIS_SECTIONS_META = [
+  { key: "foundation", number: "01", title: "Research Foundation", short: "Foundation", description: "Topic, motivation, background context for the study." },
+  { key: "literatureReview", number: "02", title: "Literature Review", short: "Lit. Review", description: "Synthesis of the literature — themes, debates, positioning." },
+  { key: "framework", number: "03", title: "Conceptual Framework", short: "Framework", description: "How spatial characteristics, emotional experience and behavioural patterns relate." },
+  { key: "researchQuestions", number: "04", title: "Research Questions", short: "Research Qs", description: "Main and sub research questions — keep multiple drafts (RQ1, RQ2, RQ3…) side by side as they evolve." },
+  { key: "methodology", number: "05", title: "Methodology", short: "Methodology", description: "Research design and approach. Includes the Questionnaire panel below." },
+  { key: "dataCollection", number: "06", title: "Data Collection", short: "Data Collection", description: "Fieldwork plan and log. Includes the Case Studies and Observation panels below." },
+  { key: "dataAnalysis", number: "07", title: "Data Analysis", short: "Analysis", description: "Analytical approach and working notes." },
+  { key: "findings", number: "08", title: "Findings", short: "Findings", description: "What the data shows." },
+  { key: "discussion", number: "09", title: "Discussion", short: "Discussion", description: "Interpretation — how findings relate to the literature and framework." },
+  { key: "designImplications", number: "10", title: "Design Implications", short: "Design Impl.", description: "Implications for spatial / urban design." },
+  { key: "conclusion", number: "11", title: "Conclusion", short: "Conclusion", description: "Summary, contributions, limitations, future work." },
+];
+
+function initThesisSections() {
+  return Object.fromEntries(THESIS_SECTIONS_META.map((s) => [s.key, { blocks: [] }]));
+}
+
+// Strategic components — each carries its own list of small daily actions,
+// distinct from the freeform sections above (this is the execution layer).
+function initThesisComponents() {
+  return ["Literature Review", "Framework", "Research Questions", "Methodology", "Questionnaire", "Fieldwork", "Analysis", "Writing"]
+    .map((name) => ({ id: uid(), name, actions: [] }));
 }
 
 function initThesis() {
   return {
-    roadmap: initThesisRoadmap(),
-    literature: [],
-    framework: {
-      logic: "SPATIAL CHARACTERISTICS → EMOTIONAL EXPERIENCE → LEARNING BEHAVIOUR",
-      mainRQ: "How do the spatial characteristics of informal learning spaces in Shanghai universities shape students' emotional experience and, in turn, their learning behaviour?",
-      subQuestions: [],
-      keyConcepts: [],
-      spatialFactors: [],
-      emotionalFactors: [],
-      behavioralFactors: [],
-      variables: [],
-      relationships: [],
-      literatureLinks: [],
-    },
-    caseStudies: [],
-    observations: [],
+    sections: initThesisSections(),
+    components: initThesisComponents(),
     questionnaire: {
       title: "", purpose: "", link: "", draftDate: "", supervisorReviewDate: "", pilotDate: "",
       launchDate: "", closingDate: "", targetParticipants: 200, currentResponses: 0, stage: "IDEA",
     },
     questionBank: [],
+    caseStudies: [],
+    observations: [],
     supervisor: {
       checklist: [
         "Thesis topic", "Research question", "Literature review progress", "Initial conceptual framework",
@@ -88,6 +95,141 @@ function initThesis() {
     },
     outputs: [],
     timeLog: [],
+  };
+}
+
+// One-time upgrade path for accounts created before the 11-section rebuild:
+// old `roadmap` / `framework` / embedded `literature` are replaced, but
+// nothing authored is discarded — the original framework logic + research
+// question are carried into the new sections as seed blocks.
+function migrateThesis(raw) {
+  if (!raw) return initThesis();
+  const alreadyCurrent = raw.sections && typeof raw.sections === "object" && Array.isArray(raw.components);
+  if (alreadyCurrent) return raw;
+
+  const fresh = initThesis();
+  const sections = initThesisSections();
+  if (raw.framework && (raw.framework.logic || raw.framework.mainRQ)) {
+    if (raw.framework.logic) {
+      sections.framework.blocks.push({ id: uid(), label: "Conceptual logic (carried over)", text: raw.framework.logic, createdAt: todayISO() });
+    }
+    if (raw.framework.mainRQ) {
+      sections.researchQuestions.blocks.push({ id: uid(), label: "RQ1 (carried over)", text: raw.framework.mainRQ, createdAt: todayISO() });
+    }
+    (raw.framework.subQuestions || []).forEach((q, i) => {
+      sections.researchQuestions.blocks.push({ id: uid(), label: `RQ${i + 2} (carried over)`, text: q, createdAt: todayISO() });
+    });
+  }
+
+  return {
+    sections,
+    components: fresh.components,
+    questionnaire: raw.questionnaire || fresh.questionnaire,
+    questionBank: raw.questionBank || [],
+    caseStudies: raw.caseStudies || [],
+    observations: raw.observations || [],
+    supervisor: raw.supervisor || fresh.supervisor,
+    outputs: raw.outputs || [],
+    timeLog: raw.timeLog || [],
+  };
+}
+
+// Retro-planning: three phases spanning trackerStart → thesisMidterm.
+// Purely computed from settings, so editing the midterm date in Settings
+// recalculates the whole plan automatically — nothing here is persisted.
+const THESIS_PLAN_PHASES = [
+  { key: "foundation", title: "Foundation & Literature", description: "Research foundation and literature review groundwork." },
+  { key: "framework", title: "Framework, Methodology & Collection Prep", description: "Conceptual framework, methodology design, questionnaire and fieldwork preparation." },
+  { key: "analysis", title: "Analysis, Writing & Presentation Prep", description: "Data analysis, write-up, and midterm presentation preparation." },
+];
+function computeThesisPlan(settings) {
+  const start = settings.trackerStart;
+  const end = settings.thesisMidterm;
+  const totalDays = Math.max(1, daysBetween(start, end));
+  const cut1 = Math.round(totalDays / 3);
+  const cut2 = Math.round((totalDays * 2) / 3);
+  const bounds = [0, cut1, cut2, totalDays];
+  const phases = THESIS_PLAN_PHASES.map((p, i) => ({
+    ...p,
+    start: addDays(start, bounds[i]),
+    end: i === THESIS_PLAN_PHASES.length - 1 ? end : addDays(start, bounds[i + 1] - 1),
+  }));
+  const today = todayISO();
+  let currentIndex = phases.findIndex((p) => today >= p.start && today <= p.end);
+  if (currentIndex === -1) currentIndex = today > end ? phases.length - 1 : 0;
+  return {
+    phases,
+    currentIndex,
+    daysElapsed: Math.max(0, daysBetween(start, today)),
+    daysLeft: Math.max(0, daysBetween(today, end)),
+    totalDays,
+  };
+}
+
+/* =========================================================================
+   LITERATURE — its own top-level store (app_data key "literature"),
+   separate from thesis so the bibliography can grow independently.
+   Matrix columns are real fields on the article now (not a shadow "ai"
+   copy) — they're manually editable today and will be the same fields an
+   AI pass fills in later (Phase 2+), so nothing has to migrate later.
+   ========================================================================= */
+function initLiterature() {
+  return { articles: [] };
+}
+
+function blankLiteratureArticle() {
+  return {
+    id: null,
+    authors: "", year: "", title: "", journal: "", doi: "", keywords: "",
+    fileName: "", filePath: "", fileType: "", fileSize: 0, uploadedAt: null,
+    topic: "", researchQuestion: "", method: "", sample: "", context: "",
+    keyConcepts: "", findings: "", limitations: "",
+    relevantEmotion: false, relevantBehavior: false, relevantSpace: false, relevantInformalLearning: false,
+    relevanceToThesis: "", potentialGap: "", usedInThesis: false, chapter: "",
+    status: "UNREAD", notes: "",
+  };
+}
+
+// Matrix column definitions — driven by one list so the Library form and
+// the Matrix table stay in sync instead of duplicating field names.
+const LITERATURE_MATRIX_FIELDS = [
+  { key: "authors", label: "Author(s)", width: 160 },
+  { key: "year", label: "Year", width: 70 },
+  { key: "topic", label: "Topic", width: 160 },
+  { key: "researchQuestion", label: "RQ", width: 200 },
+  { key: "method", label: "Method", width: 140 },
+  { key: "sample", label: "Sample", width: 140 },
+  { key: "context", label: "Context", width: 140 },
+  { key: "keyConcepts", label: "Key Concepts", width: 180 },
+  { key: "findings", label: "Findings", width: 220 },
+  { key: "limitations", label: "Limitations", width: 180 },
+  { key: "relevantEmotion", label: "Emotion?", width: 90, type: "bool" },
+  { key: "relevantBehavior", label: "Behavior?", width: 90, type: "bool" },
+  { key: "relevantSpace", label: "Space?", width: 90, type: "bool" },
+  { key: "relevantInformalLearning", label: "Informal Learning?", width: 110, type: "bool" },
+  { key: "relevanceToThesis", label: "Relevance to Thesis", width: 220 },
+  { key: "potentialGap", label: "Potential Gap", width: 180 },
+  { key: "usedInThesis", label: "Used?", width: 80, type: "bool" },
+  { key: "chapter", label: "Chapter", width: 120 },
+];
+
+// One-time migration for articles that used to live inside thesis.literature.
+function migrateLiteratureArticle(old) {
+  return {
+    ...blankLiteratureArticle(),
+    id: old.id || uid(),
+    authors: old.author || "",
+    year: old.year || "",
+    title: old.title || "",
+    doi: old.doi || "",
+    keywords: old.keywords || "",
+    researchQuestion: old.rq || "",
+    method: old.methodology || "",
+    keyConcepts: old.keyIdea || "",
+    findings: old.findings || "",
+    relevanceToThesis: old.relevance || "",
+    status: old.status || "UNREAD",
+    notes: old.notes || "",
   };
 }
 
@@ -333,22 +475,65 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onCon
   );
 }
 
+// Collapsed by default — used for secondary panels that should stay
+// reachable without competing for visual attention (academic-workspace
+// tone rather than everything-expanded dashboard noise).
+function Collapsible({ title, subtitle, defaultOpen, children }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div className="pt-card" style={{ padding: 0, overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+      >
+        <div>
+          <div className="pt-h2" style={{ fontSize: 15, margin: 0 }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>{subtitle}</div>}
+        </div>
+        <ChevronDown size={16} color="var(--ink-faint)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease", flexShrink: 0 }} />
+      </button>
+      {open && <div style={{ padding: "0 20px 20px" }}>{children}</div>}
+    </div>
+  );
+}
+
 /* =========================================================================
    ROOT APP
    ========================================================================= */
 export default function Tracker({ onSignOut }) {
   const [settings, saveSettings, sLoaded] = useStore("settings", initSettings);
-  const [thesis, saveThesis, tLoaded] = useStore("thesis", initThesis);
+  const [thesisRaw, saveThesis, tLoaded] = useStore("thesis", initThesis);
   const [goals, saveGoals, gLoaded] = useStore("goals", initGoals);
   const [calendar, saveCalendar, cLoaded] = useStore("calendar", initCalendar);
   const [meta, saveMeta, mLoaded] = useStore("meta", initMeta);
+  const [literature, saveLiterature, lLoaded] = useStore("literature", initLiterature);
 
   const [nav, setNav] = useState("home");
-  const [subNav, setSubNav] = useState(null);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
+  const migratedRef = useRef(false);
 
-  const allLoaded = sLoaded && tLoaded && gLoaded && cLoaded && mLoaded;
+  const allLoaded = sLoaded && tLoaded && gLoaded && cLoaded && mLoaded && lLoaded;
+
+  // Render-safe: always compute the current-shape thesis, even before the
+  // one-time upgrade below has persisted back to Supabase.
+  const thesis = useMemo(() => migrateThesis(thesisRaw), [thesisRaw]);
+
+  // One-time upgrade: old accounts (pre 11-section rebuild) get their
+  // thesis row rewritten to the new shape, and any articles that used to
+  // live inside thesis.literature are moved into their own store. Runs
+  // once per load, only if needed.
+  useEffect(() => {
+    if (!allLoaded || migratedRef.current) return;
+    migratedRef.current = true;
+    const needsThesisUpgrade = !(thesisRaw && thesisRaw.sections && Array.isArray(thesisRaw.components));
+    if (needsThesisUpgrade) saveThesis(migrateThesis(thesisRaw));
+    const oldArticles = Array.isArray(thesisRaw && thesisRaw.literature) ? thesisRaw.literature : [];
+    if (oldArticles.length > 0 && literature.articles.length === 0) {
+      saveLiterature({ articles: oldArticles.map(migrateLiteratureArticle) });
+    }
+    // eslint-disable-next-line
+  }, [allLoaded]);
 
   const showToast = useCallback((data, duration) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -381,7 +566,7 @@ export default function Tracker({ onSignOut }) {
     );
   }
 
-  const ctx = { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, addXP, notify, nav, setNav, subNav, setSubNav, onSignOut };
+  const ctx = { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, literature, saveLiterature, addXP, notify, nav, setNav, onSignOut };
 
   return (
     <div className="pt-root">
@@ -391,9 +576,11 @@ export default function Tracker({ onSignOut }) {
       <main className="pt-main">
         {nav === "home" && <HomeScreen ctx={ctx} />}
         {nav === "thesis" && <ThesisScreen ctx={ctx} />}
-        {nav === "goals" && <GoalsScreen ctx={ctx} />}
+        {nav === "french" && <FrenchScreen ctx={ctx} />}
+        {nav === "chinese" && <ChineseScreen ctx={ctx} />}
+        {nav === "internship" && <InternshipScreen ctx={ctx} />}
+        {nav === "portfolio" && <PortfolioScreen ctx={ctx} />}
         {nav === "calendar" && <CalendarScreen ctx={ctx} />}
-        {nav === "progress" && <ProgressScreen ctx={ctx} />}
         {nav === "settings" && <SettingsScreen ctx={ctx} />}
       </main>
       <AppToast toast={toast} onDismiss={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setToast(null); }} />
@@ -405,18 +592,15 @@ export default function Tracker({ onSignOut }) {
    SIDEBAR
    ========================================================================= */
 function Sidebar({ ctx }) {
-  const { nav, setNav, subNav, setSubNav, onSignOut } = ctx;
+  const { nav, setNav, onSignOut } = ctx;
   const items = [
-    { key: "home", label: "Home", icon: Home },
+    { key: "home", label: "Dashboard", icon: Home },
     { key: "thesis", label: "Thesis", icon: FlaskConical },
-    { key: "goals", label: "Goals", icon: Target, sub: [
-      { key: "internship", label: "Internship" },
-      { key: "french", label: "French A2" },
-      { key: "chinese", label: "Chinese HSK 3" },
-      { key: "urbanism", label: "Urbanism Portfolio" },
-    ]},
+    { key: "french", label: "French", icon: Languages },
+    { key: "chinese", label: "Chinese", icon: BookOpen },
+    { key: "internship", label: "Internship", icon: Briefcase },
+    { key: "portfolio", label: "Portfolio", icon: Building2 },
     { key: "calendar", label: "Calendar", icon: CalendarIcon },
-    { key: "progress", label: "Progress", icon: TrendingUp },
     { key: "settings", label: "Settings", icon: SettingsIcon },
   ];
   return (
@@ -424,23 +608,13 @@ function Sidebar({ ctx }) {
       <div className="pt-brand">Field Notes<span>Personal Tracker</span></div>
       <nav className="pt-nav">
         {items.map((it) => (
-          <div key={it.key}>
-            <button
-              className={`pt-nav-item ${nav === it.key ? "active" : ""}`}
-              onClick={() => { setNav(it.key); if (it.sub) setSubNav(it.sub[0].key); else setSubNav(null); }}
-            >
-              <it.icon size={16} /> {it.label}
-            </button>
-            {it.sub && nav === it.key && (
-              <div className="pt-nav-sub">
-                {it.sub.map((s) => (
-                  <div key={s.key} className={`pt-nav-sub-item ${subNav === s.key ? "active" : ""}`} onClick={() => setSubNav(s.key)}>
-                    {s.label}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <button
+            key={it.key}
+            className={`pt-nav-item ${nav === it.key ? "active" : ""}`}
+            onClick={() => setNav(it.key)}
+          >
+            <it.icon size={16} /> {it.label}
+          </button>
         ))}
       </nav>
       <div className="pt-sidebar-spacer" style={{ flex: 1 }} />
@@ -458,17 +632,16 @@ function Sidebar({ ctx }) {
 /* =========================================================================
    DERIVED PROGRESS CALCULATIONS
    ========================================================================= */
-function computeThesisProgress(thesis) {
-  const phases = thesis.roadmap;
-  const done = phases.filter((p) => p.status === "COMPLETED").length;
-  const pct = Math.round((done / phases.length) * 100);
-  const current = phases.find((p) => p.status === "IN PROGRESS") || phases.find((p) => p.status !== "COMPLETED");
-  const anyBehind = phases.some((p) => p.status === "BEHIND");
-  const anyAtRisk = phases.some((p) => p.status === "AT RISK");
+function computeThesisProgress(thesis, settings) {
+  const plan = computeThesisPlan(settings);
+  const timePct = Math.min(100, Math.round((plan.daysElapsed / plan.totalDays) * 100));
+  const allActions = thesis.components.flatMap((c) => c.actions);
+  const pct = allActions.length > 0 ? Math.round((allActions.filter((a) => a.done).length / allActions.length) * 100) : 0;
   let status = "ON TRACK";
-  if (anyBehind) status = "BEHIND"; else if (anyAtRisk) status = "AT RISK";
-  if (done === phases.length) status = "COMPLETED";
-  return { pct, current: current ? current.title : "—", next: current ? `Advance: ${current.title}` : "All phases complete", status };
+  if (pct < timePct - 20) status = "BEHIND"; else if (pct < timePct - 8) status = "AT RISK";
+  if (plan.daysLeft === 0 && pct >= 100) status = "COMPLETED";
+  const currentPhase = plan.phases[plan.currentIndex];
+  return { pct, current: currentPhase.title, next: `${plan.daysLeft} day${plan.daysLeft === 1 ? "" : "s"} to midterm`, status, timePct, plan };
 }
 function computeFrenchProgress(french) {
   const lessons = french.lessons;
@@ -489,11 +662,16 @@ function computeChineseProgress(chinese, settings) {
   return { pct, current: `${chinese.vocabCount} words logged`, next: "Log today's study session", status, wordTarget };
 }
 function computeInternshipProgress(internship) {
-  if (internship.active) return { pct: 100, current: internship.active.company, next: "Log today's internship activity", status: "ON TRACK" };
+  if (internship.active) return { pct: 100, current: internship.active.company, next: internship.active.position || "Active internship", status: "ON TRACK" };
   const n = internship.applications.length;
   const pct = Math.min(100, n * 8);
   const hasOffer = internship.applications.some((a) => a.status === "OFFER");
-  return { pct, current: hasOffer ? "Offer received" : `${n} application${n === 1 ? "" : "s"} tracked`, next: "Add / follow up on an application", status: hasOffer ? "ON TRACK" : (n === 0 ? "BEHIND" : "AT RISK") };
+  return {
+    pct,
+    current: hasOffer ? "Offer received" : "Searching",
+    next: `${n} application${n === 1 ? "" : "s"} tracked`,
+    status: hasOffer ? "ON TRACK" : (n === 0 ? "BEHIND" : "AT RISK"),
+  };
 }
 function computePortfolioProgress(portfolio) {
   const idx = portfolio.stages.indexOf(portfolio.stage);
@@ -503,49 +681,52 @@ function computePortfolioProgress(portfolio) {
 }
 
 const GOAL_META = {
-  thesis: { label: "Thesis", icon: FlaskConical, color: "var(--thesis)", soft: "var(--thesis-soft)" },
-  internship: { label: "Internship", icon: Briefcase, color: "var(--internship)", soft: "var(--internship-soft)" },
-  french: { label: "French A2", icon: Languages, color: "var(--french)", soft: "var(--french-soft)" },
-  chinese: { label: "Chinese HSK 3", icon: BookOpen, color: "var(--chinese)", soft: "var(--chinese-soft)" },
-  urbanism: { label: "Urbanism Portfolio", icon: Building2, color: "var(--urbanism)", soft: "var(--urbanism-soft)" },
+  thesis: { label: "Thesis", icon: FlaskConical, color: "var(--thesis)", soft: "var(--thesis-soft)", nav: "thesis" },
+  internship: { label: "Internship", icon: Briefcase, color: "var(--internship)", soft: "var(--internship-soft)", nav: "internship" },
+  french: { label: "French A2", icon: Languages, color: "var(--french)", soft: "var(--french-soft)", nav: "french" },
+  chinese: { label: "Chinese HSK3", icon: BookOpen, color: "var(--chinese)", soft: "var(--chinese-soft)", nav: "chinese" },
+  urbanism: { label: "Portfolio", icon: Building2, color: "var(--urbanism)", soft: "var(--urbanism-soft)", nav: "portfolio" },
 };
 
 /* =========================================================================
    HOME SCREEN
    ========================================================================= */
 function HomeScreen({ ctx }) {
-  const { settings, thesis, goals, calendar, meta, saveMeta, setNav, setSubNav, addXP, notify } = ctx;
+  const { settings, thesis, goals, calendar, meta, saveMeta, saveCalendar, setNav, addXP, notify } = ctx;
   const daysLeft = daysBetween(todayISO(), settings.thesisMidterm);
-  const daysSince = Math.max(0, daysBetween(settings.trackerStart, todayISO()));
 
   const today = todayISO();
   const priorities = meta.topPriorities[today] || [];
 
-  const thesisP = computeThesisProgress(thesis);
+  const thesisP = computeThesisProgress(thesis, settings);
   const frenchP = computeFrenchProgress(goals.french);
   const chineseP = computeChineseProgress(goals.chinese, settings);
   const internshipP = computeInternshipProgress(goals.internship);
   const portfolioP = computePortfolioProgress(goals.urbanism ? goals.urbanism : goals.portfolio);
 
   const cards = [
-    { key: "thesis", ...thesisP, nav: "thesis", sub: null },
-    { key: "internship", ...internshipP, nav: "goals", sub: "internship" },
-    { key: "french", ...frenchP, nav: "goals", sub: "french" },
-    { key: "chinese", ...chineseP, nav: "goals", sub: "chinese" },
-    { key: "urbanism", ...portfolioP, nav: "goals", sub: "urbanism" },
+    { key: "thesis", ...thesisP },
+    { key: "french", ...frenchP },
+    { key: "chinese", ...chineseP },
+    { key: "internship", ...internshipP },
+    { key: "urbanism", ...portfolioP },
   ];
 
-  const todaysTasks = calendar.tasks.filter((t) => t.date === today);
+  const todaysTasks = useMemo(
+    () => calendar.tasks.filter((t) => t.date === today).sort((a, b) => (a.time || "").localeCompare(b.time || "")),
+    [calendar.tasks, today]
+  );
   const tasksCompletedToday = todaysTasks.filter((t) => t.completed).length;
-  const todaysTimeLog = thesis.timeLog.filter((t) => t.date === today).reduce((s, t) => s + t.minutes, 0);
-  const todaysFrenchLesson = goals.french.lessons.find((l) => l.date === today) || goals.french.lessons.find((l) => l.status !== "COMPLETED");
-  const xpToday = meta.xpLog.filter((x) => x.date === today).reduce((s, x) => s + x.amount, 0);
+
+  function toggleTask(t) {
+    saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.map((x) => (x.id === t.id ? { ...x, completed: !x.completed } : x)) }));
+    if (!t.completed) addXP(10, "Task completed");
+  }
 
   function togglePriority(id) {
     saveMeta((prev) => {
       const list = prev.topPriorities[today] || [];
       const next = list.map((p) => (p.id === id ? { ...p, done: !p.done } : p));
-      const wasDone = list.find((p) => p.id === id)?.done;
       return { ...prev, topPriorities: { ...prev.topPriorities, [today]: next } };
     });
   }
@@ -568,33 +749,51 @@ function HomeScreen({ ctx }) {
       }));
     }
   }
-
   const [newPriority, setNewPriority] = useState("");
+
+  // Weekly review — folded in from the old standalone Progress screen.
+  const [reviewDraft, setReviewDraft] = useState({ achievement: "", nextWeek: ["", "", ""] });
+  function saveReview() {
+    if (!reviewDraft.achievement.trim()) return;
+    saveMeta((prev) => ({ ...prev, weeklyReviews: [{ id: uid(), date: todayISO(), ...reviewDraft }, ...prev.weeklyReviews] }));
+    setReviewDraft({ achievement: "", nextWeek: ["", "", ""] });
+    notify("Weekly review saved");
+  }
 
   return (
     <div>
-      <div className="pt-eyebrow">My Progress</div>
-      <h1 className="pt-h1">Good to see you.</h1>
-      <p className="pt-sub" style={{ marginBottom: 26 }}>Here's what matters today.</p>
+      <div className="pt-eyebrow">Dashboard</div>
+      <h1 className="pt-h1">Overview</h1>
+      <p className="pt-sub" style={{ marginBottom: 26 }}>Where every track stands today.</p>
 
       <div className="pt-hero" style={{ marginBottom: 22 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 20 }}>
-          <div>
-            <div className="pt-hero-label">Thesis Midterm · {fmtDate(settings.thesisMidterm)}</div>
-            <div className="pt-hero-count">{daysLeft >= 0 ? daysLeft : 0}</div>
-            <div className="pt-hero-days">days left</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div className="pt-hero-label">Since {fmtDate(settings.trackerStart)}</div>
-            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 24, fontWeight: 600 }}>{daysSince}</div>
-            <div className="pt-hero-days" style={{ fontSize: 13 }}>days in</div>
-          </div>
-        </div>
+        <div className="pt-hero-label">Thesis Midterm · {fmtDate(settings.thesisMidterm)}</div>
+        <div className="pt-hero-count">{daysLeft >= 0 ? daysLeft : 0}</div>
+        <div className="pt-hero-days">days left</div>
       </div>
 
+      <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Tracks</div>
+      <div className="pt-grid5" style={{ marginBottom: 22 }}>
+        {cards.map((c) => {
+          const m = GOAL_META[c.key];
+          return (
+            <div key={c.key} className="pt-goalcard" onClick={() => setNav(m.nav)}>
+              <div className="pt-goalcard-icon" style={{ background: m.soft }}><m.icon size={16} color={m.color} /></div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{m.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'IBM Plex Mono',monospace", marginBottom: 8 }}>{c.pct}%</div>
+              <ProgressBar pct={c.pct} color={m.color} />
+              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 10, lineHeight: 1.4 }}>{c.current}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.3 }}>{c.next}</div>
+              <div style={{ marginTop: 8 }}><StatusPill status={c.status} /></div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Today</div>
       <div className="pt-grid2" style={{ marginBottom: 22 }}>
         <div className="pt-card">
-          <div className="pt-h2" style={{ fontSize: 15, marginBottom: 14 }}>Today's Top 3 Priorities</div>
+          <div className="pt-h2" style={{ fontSize: 14, marginBottom: 14 }}>Priorities</div>
           {priorities.length === 0 && <EmptyState text="No priorities set for today yet." />}
           {priorities.map((p) => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line-soft)" }}>
@@ -616,53 +815,53 @@ function HomeScreen({ ctx }) {
         </div>
 
         <div className="pt-card">
-          <div className="pt-h2" style={{ fontSize: 15, marginBottom: 14 }}>Today's Progress</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <StatRow label="Tasks completed" value={`${tasksCompletedToday} / ${todaysTasks.length}`} icon={CheckCircle2} />
-            <StatRow label="Time logged (thesis)" value={`${Math.floor(todaysTimeLog / 60)}h ${todaysTimeLog % 60}m`} icon={Clock} />
-            <StatRow label="XP earned" value={`+${xpToday}`} icon={Sparkles} />
-            <StatRow label="Streak" value={`${goals.french.streak || 0} days`} icon={Flame} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div className="pt-h2" style={{ fontSize: 14, margin: 0 }}>Scheduled today</div>
+            <span style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>{tasksCompletedToday} / {todaysTasks.length}</span>
           </div>
+          {todaysTasks.length === 0 ? <EmptyState text="Nothing scheduled today." /> : todaysTasks.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line-soft)" }}>
+              <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => toggleTask(t)}>
+                {t.completed ? <CheckCircle2 size={17} color="var(--ontrack)" /> : <Circle size={17} color="var(--ink-faint)" />}
+              </button>
+              <span style={{ flex: 1, fontSize: 13.5, textDecoration: t.completed ? "line-through" : "none", color: t.completed ? "var(--ink-faint)" : "var(--ink)" }}>{t.title}</span>
+              <span className="pt-chip">{t.category}</span>
+            </div>
+          ))}
+          <button className="pt-btn pt-btn-sm" style={{ marginTop: 12 }} onClick={() => setNav("calendar")}>Open calendar <ChevronRight size={12} /></button>
         </div>
       </div>
 
-      <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Five Goals</div>
-      <div className="pt-grid5">
-        {cards.map((c) => {
-          const m = GOAL_META[c.key];
-          return (
-            <div key={c.key} className="pt-goalcard" onClick={() => { setNav(c.nav); if (c.sub) setSubNav(c.sub); }}>
-              <div className="pt-goalcard-icon" style={{ background: m.soft }}><m.icon size={16} color={m.color} /></div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{m.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'IBM Plex Mono',monospace", marginBottom: 8 }}>{c.pct}%</div>
-              <ProgressBar pct={c.pct} color={m.color} />
-              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 10, lineHeight: 1.4 }}>{c.current}</div>
-              <div style={{ marginTop: 8 }}><StatusPill status={c.status} /></div>
+      <Collapsible title="Weekly review" subtitle={`${meta.xp} pts · ${goals.french.streak || 0} day streak`}>
+        <div className="pt-grid5" style={{ marginBottom: 16, marginTop: 4 }}>
+          {cards.map((c) => (
+            <div key={c.key}>
+              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 4 }}>{GOAL_META[c.key].label}</div>
+              <div style={{ fontWeight: 700, fontFamily: "'IBM Plex Mono',monospace" }}>{c.pct}%</div>
             </div>
-          );
-        })}
-      </div>
-
-      {todaysFrenchLesson && (
-        <div className="pt-card" style={{ marginTop: 22 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div className="pt-eyebrow">Today's French Lesson</div>
-              <div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{todaysFrenchLesson.title}</div>
-            </div>
-            <button className="pt-btn pt-btn-primary" onClick={() => { setNav("goals"); setSubNav("french"); }}>Open <ChevronRight size={14} /></button>
-          </div>
+          ))}
         </div>
-      )}
-    </div>
-  );
-}
+        <Field label="Biggest achievement this week"><textarea className="pt-textarea" value={reviewDraft.achievement} onChange={(e) => setReviewDraft({ ...reviewDraft, achievement: e.target.value })} /></Field>
+        <div className="pt-label" style={{ marginBottom: 6 }}>Next week — top 3 priorities</div>
+        {reviewDraft.nextWeek.map((v, i) => (
+          <input key={i} className="pt-input" style={{ marginBottom: 8 }} value={v} onChange={(e) => { const nw = [...reviewDraft.nextWeek]; nw[i] = e.target.value; setReviewDraft({ ...reviewDraft, nextWeek: nw }); }} />
+        ))}
+        {!reviewDraft.achievement.trim() && <div className="pt-field-error">Biggest achievement is required.</div>}
+        <button className="pt-btn pt-btn-primary" disabled={!reviewDraft.achievement.trim()} onClick={saveReview}><Check size={14} /> Save weekly review</button>
 
-function StatRow({ label, value, icon: Icon }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13.5 }}>
-      <span style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ink-soft)" }}><Icon size={14} /> {label}</span>
-      <span style={{ fontWeight: 700, fontFamily: "'IBM Plex Mono',monospace" }}>{value}</span>
+        {meta.weeklyReviews.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div className="pt-label" style={{ marginBottom: 8 }}>Past reviews</div>
+            {meta.weeklyReviews.map((r) => (
+              <div key={r.id} className="pt-card pt-card-tight" style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 }}>{fmtDate(r.date)}</div>
+                <div style={{ fontSize: 13 }}>{r.achievement}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>Next: {r.nextWeek.filter(Boolean).join(" · ")}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Collapsible>
     </div>
   );
 }
@@ -671,28 +870,25 @@ function StatRow({ label, value, icon: Icon }) {
    THESIS SCREEN
    ========================================================================= */
 const THESIS_TABS = [
-  { key: "roadmap", label: "Roadmap" },
-  { key: "literature", label: "Literature Library" },
-  { key: "framework", label: "Conceptual Framework" },
-  { key: "cases", label: "Case Studies" },
-  { key: "observation", label: "Observation" },
-  { key: "questionnaire", label: "Questionnaire" },
-  { key: "supervisor", label: "Supervisor" },
-  { key: "outputs", label: "Research Outputs" },
-  { key: "time", label: "Time Tracking" },
+  { key: "plan", label: "Plan" },
+  { key: "literature", label: "Literature" },
+  ...THESIS_SECTIONS_META.map((s) => ({ key: s.key, label: `${s.number} · ${s.short}` })),
 ];
 
 function ThesisScreen({ ctx }) {
-  const [tab, setTab] = useState("roadmap");
+  const [tab, setTab] = useState("plan");
   const { settings } = ctx;
-  const daysLeft = daysBetween(todayISO(), settings.thesisMidterm);
+  const plan = computeThesisPlan(settings);
+  const currentPhase = plan.phases[plan.currentIndex];
 
   return (
     <div>
       <div className="pt-eyebrow">Priority Goal</div>
       <h1 className="pt-h1">Thesis & Research</h1>
       <p className="pt-sub" style={{ marginBottom: 6 }}>Informal Learning Spaces in Shanghai Universities: Emotional Experience and Learning Behavior</p>
-      <p className="pt-sub" style={{ marginBottom: 24, fontWeight: 600, color: "var(--thesis)" }}>{daysLeft} days to midterm — {fmtDate(settings.thesisMidterm)}</p>
+      <p className="pt-sub" style={{ marginBottom: 24, fontWeight: 600, color: "var(--thesis)" }}>
+        {plan.daysLeft} days to midterm — {fmtDate(settings.thesisMidterm)} · This week: {currentPhase.title}
+      </p>
 
       <div className="pt-tabs">
         {THESIS_TABS.map((t) => (
@@ -700,177 +896,203 @@ function ThesisScreen({ ctx }) {
         ))}
       </div>
 
-      {tab === "roadmap" && <RoadmapTab ctx={ctx} />}
-      {tab === "literature" && <LiteratureTab ctx={ctx} />}
-      {tab === "framework" && <FrameworkTab ctx={ctx} />}
-      {tab === "cases" && <CaseStudiesTab ctx={ctx} />}
-      {tab === "observation" && <ObservationTab ctx={ctx} />}
-      {tab === "questionnaire" && <QuestionnaireTab ctx={ctx} />}
-      {tab === "supervisor" && <SupervisorTab ctx={ctx} />}
-      {tab === "outputs" && <OutputsTab ctx={ctx} />}
-      {tab === "time" && <TimeTrackingTab ctx={ctx} />}
+      {tab === "plan" && <ThesisPlanTab ctx={ctx} />}
+      {tab === "literature" && <LiteratureScreen ctx={ctx} />}
+      {THESIS_SECTIONS_META.some((s) => s.key === tab) && <ThesisSectionTab ctx={ctx} sectionKey={tab} />}
+
+      <div style={{ marginTop: 32, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="pt-label" style={{ marginBottom: -4 }}>More</div>
+        <Collapsible title="Supervisor"><SupervisorTab ctx={ctx} /></Collapsible>
+        <Collapsible title="Research Outputs"><OutputsTab ctx={ctx} /></Collapsible>
+        <Collapsible title="Time Tracking"><TimeTrackingTab ctx={ctx} /></Collapsible>
+      </div>
     </div>
   );
 }
 
-function RoadmapTab({ ctx }) {
-  const { thesis, saveThesis, addXP, notify } = ctx;
-  const [editing, setEditing] = useState(null);
+function ThesisPlanTab({ ctx }) {
+  const { settings, thesis, saveThesis, notify } = ctx;
+  const plan = computeThesisPlan(settings);
 
-  function updatePhase(id, patch) {
-    const wasCompleted = thesis.roadmap.find((p) => p.id === id)?.status === "COMPLETED";
-    saveThesis((prev) => ({ ...prev, roadmap: prev.roadmap.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-    if (patch.status === "COMPLETED" && !wasCompleted) addXP(50, "Thesis phase completed");
-    else notify("Phase updated");
+  function addAction(componentId, text) {
+    if (!text.trim()) return;
+    saveThesis((prev) => ({ ...prev, components: prev.components.map((c) => (c.id === componentId ? { ...c, actions: [...c.actions, { id: uid(), text, done: false, createdAt: todayISO() }] } : c)) }));
+  }
+  function toggleAction(componentId, actionId) {
+    saveThesis((prev) => ({ ...prev, components: prev.components.map((c) => (c.id === componentId ? { ...c, actions: c.actions.map((a) => (a.id === actionId ? { ...a, done: !a.done } : a)) } : c)) }));
+  }
+  function removeAction(componentId, actionId) {
+    const comp = thesis.components.find((c) => c.id === componentId);
+    const removed = comp.actions.find((a) => a.id === actionId);
+    saveThesis((prev) => ({ ...prev, components: prev.components.map((c) => (c.id === componentId ? { ...c, actions: c.actions.filter((a) => a.id !== actionId) } : c)) }));
+    notify("Action removed", () => saveThesis((prev) => ({ ...prev, components: prev.components.map((c) => (c.id === componentId ? { ...c, actions: c.actions.some((a) => a.id === actionId) ? c.actions : [...c.actions, removed] } : c)) })));
   }
 
   return (
     <div>
       <div className="pt-card" style={{ marginBottom: 20 }}>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Retro-plan</div>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 14 }}>
+          {fmtDate(settings.trackerStart)} → {fmtDate(settings.thesisMidterm)} — recalculates automatically if either date changes in Settings.
+        </div>
         <div className="pt-timeline">
-          {thesis.roadmap.map((p, i) => (
-            <div className="pt-tl-row" key={p.id}>
+          {plan.phases.map((p, i) => (
+            <div className="pt-tl-row" key={p.key}>
               <div className="pt-tl-rail">
-                <div className={`pt-tl-dot ${p.status === "COMPLETED" ? "done" : ""}`} />
-                {i < thesis.roadmap.length - 1 && <div className="pt-tl-line" />}
+                <div className={`pt-tl-dot ${i < plan.currentIndex ? "done" : ""}`} />
+                {i < plan.phases.length - 1 && <div className="pt-tl-line" />}
               </div>
               <div className="pt-tl-content">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
                   <div>
-                    <div className="pt-chip" style={{ marginBottom: 6 }}>Phase {p.phaseNumber}</div>
                     <div style={{ fontSize: 15, fontWeight: 600 }}>{p.title}</div>
                     <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>{fmtDate(p.start)} – {fmtDate(p.end)}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 4, maxWidth: 460 }}>{p.description}</div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <StatusPill status={p.status} />
-                    <button className="pt-btn pt-btn-sm" onClick={() => setEditing(p)}><Edit3 size={12} /></button>
-                  </div>
+                  {i === plan.currentIndex && <StatusPill status="IN PROGRESS" />}
                 </div>
               </div>
             </div>
           ))}
         </div>
       </div>
-      {editing && (
-        <Modal title={`Edit: ${editing.title}`} onClose={() => setEditing(null)}>
-          <Field label="Status">
-            <select className="pt-select" value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value })}>
-              {["NOT STARTED", "IN PROGRESS", "COMPLETED", "AT RISK", "BEHIND"].map((s) => <option key={s}>{s}</option>)}
-            </select>
-          </Field>
-          <div className="pt-grid2">
-            <Field label="Start date"><input type="date" className="pt-input" value={editing.start} onChange={(e) => setEditing({ ...editing, start: e.target.value })} /></Field>
-            <Field label="End date"><input type="date" className="pt-input" value={editing.end} onChange={(e) => setEditing({ ...editing, end: e.target.value })} /></Field>
+
+      <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Strategic components & daily actions</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {thesis.components.map((c) => (
+          <ThesisComponentCard key={c.id} component={c} onAdd={(t) => addAction(c.id, t)} onToggle={(aid) => toggleAction(c.id, aid)} onRemove={(aid) => removeAction(c.id, aid)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThesisComponentCard({ component, onAdd, onToggle, onRemove }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const done = component.actions.filter((a) => a.done).length;
+  return (
+    <div className="pt-card">
+      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{component.name}</div>
+          <span style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>{done} / {component.actions.length}</span>
+        </div>
+        <ChevronDown size={16} color="var(--ink-faint)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
+      </button>
+      {component.actions.length > 0 && <div style={{ marginTop: 10 }}><ProgressBar pct={(done / Math.max(1, component.actions.length)) * 100} color="var(--thesis)" /></div>}
+      {open && (
+        <div style={{ marginTop: 14 }}>
+          {component.actions.length === 0 ? <EmptyState text="No actions yet." /> : component.actions.map((a) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "1px solid var(--line-soft)" }}>
+              <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => onToggle(a.id)}>
+                {a.done ? <CheckCircle2 size={16} color="var(--ontrack)" /> : <Circle size={16} color="var(--ink-faint)" />}
+              </button>
+              <span style={{ flex: 1, fontSize: 13.5, textDecoration: a.done ? "line-through" : "none", color: a.done ? "var(--ink-faint)" : "var(--ink)" }}>{a.text}</span>
+              <button className="pt-btn-ghost pt-btn pt-btn-danger pt-tap" onClick={() => onRemove(a.id)}><X size={13} /></button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <input className="pt-input" placeholder="e.g. Read Smith (2021)" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && text.trim()) { onAdd(text); setText(""); } }} />
+            <button className="pt-btn pt-btn-primary" disabled={!text.trim()} onClick={() => { onAdd(text); setText(""); }}><Plus size={14} /></button>
           </div>
-          <button className="pt-btn pt-btn-primary" style={{ marginTop: 6 }} onClick={() => { updatePhase(editing.id, { status: editing.status, start: editing.start, end: editing.end }); setEditing(null); }}>Save changes</button>
-        </Modal>
+        </div>
       )}
     </div>
   );
 }
 
-function LiteratureTab({ ctx }) {
-  const { thesis, saveThesis, addXP, notify } = ctx;
+function ThesisSectionTab({ ctx, sectionKey }) {
+  const { thesis, saveThesis, notify } = ctx;
+  const meta = THESIS_SECTIONS_META.find((s) => s.key === sectionKey);
+  const section = thesis.sections[sectionKey] || { blocks: [] };
+  function setBlocks(blocks) {
+    saveThesis((prev) => ({ ...prev, sections: { ...prev.sections, [sectionKey]: { ...prev.sections[sectionKey], blocks } } }));
+  }
+  return (
+    <div>
+      <div className="pt-eyebrow">{meta.number}</div>
+      <h2 className="pt-h2" style={{ marginBottom: 4 }}>{meta.title}</h2>
+      <p className="pt-sub" style={{ marginBottom: 18 }}>{meta.description}</p>
+      <SectionEditor blocks={section.blocks} onChange={setBlocks} notify={notify} />
+
+      {sectionKey === "methodology" && (
+        <div style={{ marginTop: 32 }}>
+          <div className="pt-h2" style={{ fontSize: 16, marginBottom: 14 }}>Questionnaire</div>
+          <QuestionnaireTab ctx={ctx} />
+        </div>
+      )}
+      {sectionKey === "dataCollection" && (
+        <div style={{ marginTop: 32, display: "flex", flexDirection: "column", gap: 32 }}>
+          <div>
+            <div className="pt-h2" style={{ fontSize: 16, marginBottom: 14 }}>Case Studies</div>
+            <CaseStudiesTab ctx={ctx} />
+          </div>
+          <div>
+            <div className="pt-h2" style={{ fontSize: 16, marginBottom: 14 }}>Observation</div>
+            <ObservationTab ctx={ctx} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Generic freeform block editor — backs every one of the 11 thesis
+// sections. No rigid fields: a section is just a growing list of labelled
+// text blocks, so multi-version content (RQ1/RQ2/RQ3 drafts, etc.) fits
+// naturally instead of fighting a fixed schema.
+function SectionEditor({ blocks, onChange, notify }) {
   const [showForm, setShowForm] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const lit = thesis.literature;
-
-  const analysed = lit.filter((a) => a.status === "ANALYSED").length;
-  const themes = new Set(lit.flatMap((a) => (a.keywords || "").split(",").map((k) => k.trim()).filter(Boolean)));
-  const gaps = lit.filter((a) => a.notes && a.notes.toLowerCase().includes("gap")).length;
-
-  function upsert(item) {
-    const isNew = !lit.some((a) => a.id === item.id);
-    saveThesis((prev) => {
-      const exists = prev.literature.some((a) => a.id === item.id);
-      return { ...prev, literature: exists ? prev.literature.map((a) => (a.id === item.id ? item : a)) : [item, ...prev.literature] };
-    });
-    notify(isNew ? "Article added" : "Article updated");
+  const [draft, setDraft] = useState(null);
+  function blank() { return { id: null, label: "", text: "" }; }
+  function upsert(b) {
+    const isNew = !blocks.some((x) => x.id === b.id);
+    const next = isNew
+      ? [...blocks, { ...b, id: uid(), createdAt: todayISO() }]
+      : blocks.map((x) => (x.id === b.id ? { ...x, ...b, updatedAt: todayISO() } : x));
+    onChange(next);
+    notify(isNew ? "Block added" : "Block updated");
   }
   function remove(id) {
-    const removed = lit.find((a) => a.id === id);
-    saveThesis((prev) => ({ ...prev, literature: prev.literature.filter((a) => a.id !== id) }));
-    notify("Article removed", () => saveThesis((prev) => ({ ...prev, literature: prev.literature.some((a) => a.id === id) ? prev.literature : [removed, ...prev.literature] })));
+    const prevBlocks = blocks;
+    onChange(blocks.filter((b) => b.id !== id));
+    notify("Block removed", () => onChange(prevBlocks));
   }
-  function setStatus(id, status) {
-    const prevItem = lit.find((a) => a.id === id);
-    saveThesis((prev) => ({ ...prev, literature: prev.literature.map((a) => (a.id === id ? { ...a, status } : a)) }));
-    if (status === "ANALYSED" && prevItem?.status !== "ANALYSED") addXP(15, "Article analysed");
-  }
-  const canSaveArticle = !!(editItem && editItem.title.trim());
+  const canSave = !!(draft && draft.text.trim());
 
   return (
     <div>
-      <div className="pt-grid5" style={{ marginBottom: 20 }}>
-        <MiniStat label="Articles Analysed" value={`${analysed} / 50`} />
-        <MiniStat label="Themes Identified" value={themes.size} />
-        <MiniStat label="Research Gaps" value={gaps} />
-        <MiniStat label="Total in library" value={lit.length} />
-        <div />
-      </div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <button className="pt-btn pt-btn-primary" onClick={() => { setEditItem(blankArticle()); setShowForm(true); }}><Plus size={14} /> Add article / note</button>
+        <button className="pt-btn pt-btn-primary" onClick={() => { setDraft(blank()); setShowForm(true); }}><Plus size={14} /> Add block</button>
       </div>
-      {lit.length === 0 ? <EmptyState text="No articles yet. Add your first source to begin the literature review." /> : (
-        <div className="pt-table-wrap">
-          <table className="pt-table">
-            <thead><tr><th>Title</th><th>Author / Year</th><th>Status</th><th>Key idea</th><th></th></tr></thead>
-            <tbody>
-              {lit.map((a) => (
-                <tr key={a.id}>
-                  <td style={{ fontWeight: 600, maxWidth: 220 }}>{a.title || "(untitled)"}</td>
-                  <td>{a.author}{a.year ? `, ${a.year}` : ""}</td>
-                  <td>
-                    <select className="pt-select" style={{ width: 130 }} value={a.status} onChange={(e) => setStatus(a.id, e.target.value)}>
-                      {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ maxWidth: 260, color: "var(--ink-soft)" }}>{a.keyIdea}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <button className="pt-btn pt-btn-ghost" onClick={() => { setEditItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
-                    <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(a.id)}><Trash2 size={14} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {blocks.length === 0 ? <EmptyState text="Nothing written yet. Add a block to start developing this section." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {blocks.map((b) => (
+            <div key={b.id} className="pt-card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{b.label || "Untitled"}</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => { setDraft(b); setShowForm(true); }}><Edit3 size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => remove(b.id)}><Trash2 size={14} /></button>
+                </div>
+              </div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--ink-soft)" }}>{b.text}</div>
+              {b.updatedAt && <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8 }}>Updated {fmtDate(b.updatedAt)}</div>}
+            </div>
+          ))}
         </div>
       )}
-
       {showForm && (
-        <Modal title={editItem.title ? "Edit article" : "Add article / research note"} onClose={() => setShowForm(false)} wide>
-          <div className="pt-grid2">
-            <Field label="Title"><input className="pt-input" value={editItem.title} onChange={(e) => setEditItem({ ...editItem, title: e.target.value })} /></Field>
-            <Field label="Author"><input className="pt-input" value={editItem.author} onChange={(e) => setEditItem({ ...editItem, author: e.target.value })} /></Field>
-          </div>
-          <div className="pt-grid2">
-            <Field label="Year"><input className="pt-input" value={editItem.year} onChange={(e) => setEditItem({ ...editItem, year: e.target.value })} /></Field>
-            <Field label="DOI / URL"><input className="pt-input" value={editItem.doi} onChange={(e) => setEditItem({ ...editItem, doi: e.target.value })} /></Field>
-          </div>
-          <Field label="Keywords (comma-separated — powers Themes Identified)"><input className="pt-input" value={editItem.keywords} onChange={(e) => setEditItem({ ...editItem, keywords: e.target.value })} /></Field>
-          <Field label="Research question addressed"><input className="pt-input" value={editItem.rq} onChange={(e) => setEditItem({ ...editItem, rq: e.target.value })} /></Field>
-          <Field label="Methodology"><input className="pt-input" value={editItem.methodology} onChange={(e) => setEditItem({ ...editItem, methodology: e.target.value })} /></Field>
-          <Field label="Key idea"><textarea className="pt-textarea" value={editItem.keyIdea} onChange={(e) => setEditItem({ ...editItem, keyIdea: e.target.value })} /></Field>
-          <Field label="Relevant findings"><textarea className="pt-textarea" value={editItem.findings} onChange={(e) => setEditItem({ ...editItem, findings: e.target.value })} /></Field>
-          <Field label="Why relevant to my thesis"><textarea className="pt-textarea" value={editItem.relevance} onChange={(e) => setEditItem({ ...editItem, relevance: e.target.value })} /></Field>
-          <Field label="My notes (mention 'gap' if it reveals a research gap)"><textarea className="pt-textarea" value={editItem.notes} onChange={(e) => setEditItem({ ...editItem, notes: e.target.value })} /></Field>
-          <Field label="Status">
-            <select className="pt-select" value={editItem.status} onChange={(e) => setEditItem({ ...editItem, status: e.target.value })}>
-              {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s}>{s}</option>)}
-            </select>
-          </Field>
-          <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 12, display: "flex", gap: 6, alignItems: "flex-start" }}>
-            <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} /> PDF file storage isn't available in this environment — store the DOI/URL above and keep the PDF in your own file system or reference manager.
-          </div>
-          {!canSaveArticle && <div className="pt-field-error">Title is required.</div>}
-          <button className="pt-btn pt-btn-primary" disabled={!canSaveArticle} onClick={() => { upsert({ ...editItem, id: editItem.id || uid() }); setShowForm(false); }}>Save article</button>
+        <Modal title={draft.id ? "Edit block" : "Add block"} onClose={() => setShowForm(false)}>
+          <Field label="Label (optional — e.g. 'RQ1', 'Draft v2')"><input className="pt-input" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></Field>
+          <Field label="Text"><textarea className="pt-textarea" style={{ minHeight: 160 }} value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} /></Field>
+          {!canSave && <div className="pt-field-error">Text is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => { upsert(draft); setShowForm(false); }}>Save</button>
         </Modal>
       )}
     </div>
   );
-}
-function blankArticle() {
-  return { id: null, title: "", author: "", year: "", doi: "", keywords: "", rq: "", methodology: "", keyIdea: "", findings: "", relevance: "", notes: "", status: "UNREAD" };
 }
 function MiniStat({ label, value }) {
   return (
@@ -881,86 +1103,334 @@ function MiniStat({ label, value }) {
   );
 }
 
-function TagListEditor({ items, onChange, placeholder, notify }) {
-  const [val, setVal] = useState("");
-  function remove(i) {
-    const prevItems = items;
-    onChange(items.filter((_, idx) => idx !== i));
-    if (notify) notify(`"${items[i]}" removed`, () => onChange(prevItems));
+/* =========================================================================
+   LITERATURE — library + matrix views, Supabase Storage file attachments.
+   ========================================================================= */
+const LITERATURE_BUCKET = "literature-files";
+
+async function uploadLiteratureFile(articleId, file) {
+  const path = `${articleId}/${Date.now()}-${file.name}`;
+  const { error } = await supabase.storage.from(LITERATURE_BUCKET).upload(path, file);
+  if (error) throw error;
+  return { filePath: path, fileName: file.name, fileType: file.type, fileSize: file.size, uploadedAt: todayISO() };
+}
+async function removeLiteratureFile(filePath) {
+  if (!filePath) return;
+  const { error } = await supabase.storage.from(LITERATURE_BUCKET).remove([filePath]);
+  if (error) throw error;
+}
+async function openLiteratureFile(filePath) {
+  const { data, error } = await supabase.storage.from(LITERATURE_BUCKET).createSignedUrl(filePath, 600);
+  if (error) throw error;
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
+function LiteratureScreen({ ctx }) {
+  const { literature, saveLiterature, notify } = ctx;
+  const [view, setView] = useState("library");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [usedFilter, setUsedFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("recent");
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const articles = literature.articles;
+
+  function upsert(article) {
+    const isNew = !articles.some((a) => a.id === article.id);
+    saveLiterature((prev) => ({ ...prev, articles: isNew ? [article, ...prev.articles] : prev.articles.map((a) => (a.id === article.id ? article : a)) }));
+    notify(isNew ? "Article added" : "Article updated");
+  }
+
+  async function confirmDelete() {
+    const article = articles.find((a) => a.id === confirmDeleteId);
+    setConfirmDeleteId(null);
+    if (article.filePath) { try { await removeLiteratureFile(article.filePath); } catch (e) { /* article record still gets removed */ } }
+    saveLiterature((prev) => ({ ...prev, articles: prev.articles.filter((a) => a.id !== article.id) }));
+    notify("Article deleted");
+  }
+
+  const filtered = useMemo(() => {
+    let list = articles;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((a) => [a.title, a.authors, a.keywords, a.topic].some((f) => (f || "").toLowerCase().includes(q)));
+    }
+    if (statusFilter !== "ALL") list = list.filter((a) => a.status === statusFilter);
+    if (usedFilter !== "ALL") list = list.filter((a) => (usedFilter === "USED" ? a.usedInThesis : !a.usedInThesis));
+    const sorted = [...list];
+    if (sortBy === "year") sorted.sort((a, b) => (b.year || "").localeCompare(a.year || ""));
+    else if (sortBy === "title") sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    else if (sortBy === "author") sorted.sort((a, b) => (a.authors || "").localeCompare(b.authors || ""));
+    return sorted;
+  }, [articles, search, statusFilter, usedFilter, sortBy]);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="pt-btn pt-btn-sm" style={{ background: view === "library" ? "var(--thesis-soft)" : undefined, color: view === "library" ? "var(--thesis)" : undefined }} onClick={() => setView("library")}><LayoutList size={13} /> Library</button>
+          <button className="pt-btn pt-btn-sm" style={{ background: view === "matrix" ? "var(--thesis-soft)" : undefined, color: view === "matrix" ? "var(--thesis)" : undefined }} onClick={() => setView("matrix")}><Table2 size={13} /> Matrix</button>
+        </div>
+        <button className="pt-btn pt-btn-primary" onClick={() => { setEditItem(blankLiteratureArticle()); setShowForm(true); }}><Plus size={14} /> Add article</button>
+      </div>
+
+      <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "1 1 220px" }}>
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-faint)" }} />
+          <input className="pt-input" style={{ paddingLeft: 30 }} placeholder="Search title, authors, keywords, topic…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className="pt-select" style={{ width: 150 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="ALL">All statuses</option>
+          {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="pt-select" style={{ width: 160 }} value={usedFilter} onChange={(e) => setUsedFilter(e.target.value)}>
+          <option value="ALL">Used or not</option>
+          <option value="USED">Used in thesis</option>
+          <option value="NOT_USED">Not used yet</option>
+        </select>
+        <select className="pt-select" style={{ width: 170 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="recent">Sort: recently added</option>
+          <option value="year">Sort: year</option>
+          <option value="title">Sort: title</option>
+          <option value="author">Sort: author</option>
+        </select>
+      </div>
+
+      {articles.length === 0 ? (
+        <EmptyState text="No articles yet. Add your first source to begin the literature review." />
+      ) : filtered.length === 0 ? (
+        <EmptyState text="No articles match your search or filters." />
+      ) : view === "library" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map((a) => (
+            <LiteratureCard key={a.id} article={a} notify={notify} onEdit={() => { setEditItem(a); setShowForm(true); }} onDelete={() => setConfirmDeleteId(a.id)} />
+          ))}
+        </div>
+      ) : (
+        <LiteratureMatrix articles={filtered} onChange={(id, patch) => saveLiterature((prev) => ({ ...prev, articles: prev.articles.map((a) => (a.id === id ? { ...a, ...patch } : a)) }))} />
+      )}
+
+      {showForm && (
+        <LiteratureForm item={editItem} notify={notify} onClose={() => setShowForm(false)} onSave={(a) => { upsert(a); setShowForm(false); }} />
+      )}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="Delete article?"
+          message="This removes the article and its attached file (if any) permanently. This can't be undone."
+          confirmLabel="Delete"
+          danger
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function LiteratureCard({ article, notify, onEdit, onDelete }) {
+  return (
+    <div className="pt-card" style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{article.title || "(untitled)"}</div>
+          <StatusPill status={article.status} />
+          {article.usedInThesis && <span className="pt-chip">Used in thesis</span>}
+          {article.filePath && <span className="pt-chip"><Paperclip size={10} style={{ marginRight: 3, verticalAlign: "-1px" }} />{article.fileName || "file"}</span>}
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 4 }}>
+          {article.authors}{article.year ? `, ${article.year}` : ""}{article.journal ? ` · ${article.journal}` : ""}
+        </div>
+        {article.relevanceToThesis && <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 6 }}>{article.relevanceToThesis}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {article.filePath && <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => openLiteratureFile(article.filePath).catch((e) => notify("Couldn't open file: " + String(e.message || e)))}><ExternalLink size={14} /></button>}
+        <button className="pt-btn pt-btn-ghost pt-tap" onClick={onEdit}><Edit3 size={14} /></button>
+        <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={onDelete}><Trash2 size={14} /></button>
+      </div>
+    </div>
+  );
+}
+
+const LITERATURE_RELEVANCE_FLAGS = [
+  ["relevantEmotion", "Emotion"],
+  ["relevantBehavior", "Behavior"],
+  ["relevantSpace", "Space"],
+  ["relevantInformalLearning", "Informal learning"],
+];
+
+function LiteratureForm({ item, notify, onClose, onSave }) {
+  const [draft, setDraft] = useState(item);
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmRemoveFile, setConfirmRemoveFile] = useState(false);
+  const canSave = draft.title.trim().length > 0;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setUploading(true); setError("");
+    const id = draft.id || uid();
+    try {
+      let fileFields = {};
+      if (file) {
+        if (draft.filePath) { try { await removeLiteratureFile(draft.filePath); } catch (e) { /* upload the new one regardless */ } }
+        fileFields = await uploadLiteratureFile(id, file);
+      }
+      onSave({ ...draft, id, ...fileFields });
+    } catch (e) {
+      setError("File upload failed: " + String(e.message || e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemoveFile() {
+    if (draft.filePath) { try { await removeLiteratureFile(draft.filePath); } catch (e) { /* proceed */ } }
+    setDraft({ ...draft, filePath: "", fileName: "", fileType: "", fileSize: 0, uploadedAt: null });
+    setConfirmRemoveFile(false);
+    setFile(null);
+  }
+
+  return (
+    <Modal title={draft.id ? "Edit article" : "Add article"} onClose={onClose} wide>
+      <div className="pt-label" style={{ marginBottom: 8 }}>Source file (optional)</div>
+      <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {draft.filePath && !file && (
+          <>
+            <Paperclip size={14} color="var(--ink-soft)" />
+            <span style={{ fontSize: 12.5 }}>{draft.fileName}</span>
+            <button className="pt-btn pt-btn-sm" onClick={() => openLiteratureFile(draft.filePath).catch((e) => notify("Couldn't open file: " + String(e.message || e)))}>View</button>
+            <button className="pt-btn pt-btn-sm pt-btn-danger" onClick={() => setConfirmRemoveFile(true)}>Remove</button>
+          </>
+        )}
+        {file && <span style={{ fontSize: 12.5 }}>Will upload: {file.name}</span>}
+        <label className="pt-btn pt-btn-sm" style={{ cursor: "pointer" }}>
+          <Paperclip size={12} /> {draft.filePath || file ? "Replace file" : "Attach file"}
+          <input type="file" accept=".pdf,.txt,.docx,.doc" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+        </label>
+      </div>
+
+      <div className="pt-grid2">
+        <Field label="Authors"><input className="pt-input" value={draft.authors} onChange={(e) => setDraft({ ...draft, authors: e.target.value })} /></Field>
+        <Field label="Year"><input className="pt-input" value={draft.year} onChange={(e) => setDraft({ ...draft, year: e.target.value })} /></Field>
+      </div>
+      <Field label="Title"><input className="pt-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></Field>
+      <div className="pt-grid2">
+        <Field label="Journal"><input className="pt-input" value={draft.journal} onChange={(e) => setDraft({ ...draft, journal: e.target.value })} /></Field>
+        <Field label="DOI"><input className="pt-input" value={draft.doi} onChange={(e) => setDraft({ ...draft, doi: e.target.value })} /></Field>
+      </div>
+      <Field label="Keywords (comma-separated)"><input className="pt-input" value={draft.keywords} onChange={(e) => setDraft({ ...draft, keywords: e.target.value })} /></Field>
+      <Field label="Status">
+        <select className="pt-select" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
+          {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s}>{s}</option>)}
+        </select>
+      </Field>
+
+      <div className="pt-card pt-card-tight" style={{ marginTop: 16, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <div className="pt-label" style={{ margin: 0 }}>Matrix fields — fill manually for now</div>
+          <button className="pt-btn pt-btn-sm" disabled title="Coming later — will auto-fill these fields from the attached file"><Lock size={11} /> Analyze with AI · Coming Later</button>
+        </div>
+        <div className="pt-grid2">
+          <Field label="Topic"><input className="pt-input" value={draft.topic} onChange={(e) => setDraft({ ...draft, topic: e.target.value })} /></Field>
+          <Field label="Research question"><input className="pt-input" value={draft.researchQuestion} onChange={(e) => setDraft({ ...draft, researchQuestion: e.target.value })} /></Field>
+        </div>
+        <div className="pt-grid3">
+          <Field label="Method"><input className="pt-input" value={draft.method} onChange={(e) => setDraft({ ...draft, method: e.target.value })} /></Field>
+          <Field label="Sample"><input className="pt-input" value={draft.sample} onChange={(e) => setDraft({ ...draft, sample: e.target.value })} /></Field>
+          <Field label="Context"><input className="pt-input" value={draft.context} onChange={(e) => setDraft({ ...draft, context: e.target.value })} /></Field>
+        </div>
+        <Field label="Key concepts"><input className="pt-input" value={draft.keyConcepts} onChange={(e) => setDraft({ ...draft, keyConcepts: e.target.value })} /></Field>
+        <Field label="Findings"><textarea className="pt-textarea" value={draft.findings} onChange={(e) => setDraft({ ...draft, findings: e.target.value })} /></Field>
+        <Field label="Limitations"><textarea className="pt-textarea" value={draft.limitations} onChange={(e) => setDraft({ ...draft, limitations: e.target.value })} /></Field>
+        <div className="pt-label" style={{ marginBottom: 8 }}>Relevant to…</div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+          {LITERATURE_RELEVANCE_FLAGS.map(([k, l]) => (
+            <label key={k} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              <input type="checkbox" checked={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.checked })} /> {l}
+            </label>
+          ))}
+        </div>
+        <Field label="Relevance to thesis"><textarea className="pt-textarea" value={draft.relevanceToThesis} onChange={(e) => setDraft({ ...draft, relevanceToThesis: e.target.value })} /></Field>
+        <Field label="Potential gap"><textarea className="pt-textarea" value={draft.potentialGap} onChange={(e) => setDraft({ ...draft, potentialGap: e.target.value })} /></Field>
+        <div className="pt-grid2">
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, marginBottom: 12 }}>
+            <input type="checkbox" checked={draft.usedInThesis} onChange={(e) => setDraft({ ...draft, usedInThesis: e.target.checked })} /> Used in thesis
+          </label>
+          <Field label="Chapter"><input className="pt-input" value={draft.chapter} onChange={(e) => setDraft({ ...draft, chapter: e.target.value })} /></Field>
+        </div>
+      </div>
+
+      <Field label="Notes"><textarea className="pt-textarea" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></Field>
+
+      {error && <div className="pt-field-error">{error}</div>}
+      {!canSave && <div className="pt-field-error">Title is required.</div>}
+      <button className="pt-btn pt-btn-primary" disabled={!canSave || uploading} onClick={handleSave}>
+        {uploading ? <Loader2 size={14} className="pt-spin" /> : <Check size={14} />} {uploading ? "Saving…" : "Save article"}
+      </button>
+
+      {confirmRemoveFile && (
+        <ConfirmDialog
+          title="Remove file?"
+          message="This deletes the attached file from storage. The rest of the article stays."
+          confirmLabel="Remove"
+          danger
+          onConfirm={handleRemoveFile}
+          onCancel={() => setConfirmRemoveFile(false)}
+        />
+      )}
+    </Modal>
+  );
+}
+
+function LiteratureMatrix({ articles, onChange }) {
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState(1);
+  const sorted = useMemo(() => {
+    if (!sortKey) return articles;
+    return [...articles].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      if (typeof av === "boolean" || typeof bv === "boolean") return ((av === bv ? 0 : av ? 1 : -1)) * sortDir;
+      return String(av || "").localeCompare(String(bv || "")) * sortDir;
+    });
+  }, [articles, sortKey, sortDir]);
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir((d) => -d);
+    else { setSortKey(key); setSortDir(1); }
   }
   return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-        {items.map((it, i) => (
-          <span key={i} className="pt-chip" style={{ display: "inline-flex", gap: 6 }}>
-            {it} <span style={{ cursor: "pointer", display: "inline-flex", padding: 4, margin: -4 }} onClick={() => remove(i)}><X size={11} /></span>
-          </span>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <input className="pt-input" placeholder={placeholder} value={val} onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && val.trim()) { onChange([...items, val.trim()]); setVal(""); } }} />
-        <button className="pt-btn" onClick={() => { if (val.trim()) { onChange([...items, val.trim()]); setVal(""); } }}><Plus size={14} /></button>
-      </div>
-    </div>
-  );
-}
-
-function FrameworkTab({ ctx }) {
-  const { thesis, saveThesis, notify } = ctx;
-  const fw = thesis.framework;
-  function patch(p) { saveThesis((prev) => ({ ...prev, framework: { ...prev.framework, ...p } })); }
-
-  return (
-    <div>
-      <div className="pt-card" style={{ marginBottom: 20 }}>
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 10 }}>Conceptual logic</div>
-        <input className="pt-input pt-serif" style={{ fontSize: 15, textAlign: "center", padding: "14px 10px" }} value={fw.logic} onChange={(e) => patch({ logic: e.target.value })} />
-      </div>
-      <Field label="Main research question"><textarea className="pt-textarea" value={fw.mainRQ} onChange={(e) => patch({ mainRQ: e.target.value })} /></Field>
-      <div className="pt-grid2">
-        <div className="pt-card">
-          <div className="pt-label" style={{ marginBottom: 8 }}>Sub-questions</div>
-          <TagListEditor items={fw.subQuestions} onChange={(v) => patch({ subQuestions: v })} placeholder="Add a sub-question…" notify={notify} />
-        </div>
-        <div className="pt-card">
-          <div className="pt-label" style={{ marginBottom: 8 }}>Key concepts</div>
-          <TagListEditor items={fw.keyConcepts} onChange={(v) => patch({ keyConcepts: v })} placeholder="Add a key concept…" notify={notify} />
-        </div>
-      </div>
-      <div className="pt-grid3" style={{ marginTop: 16 }}>
-        <div className="pt-card">
-          <div className="pt-label" style={{ marginBottom: 8 }}>Spatial factors</div>
-          <TagListEditor items={fw.spatialFactors} onChange={(v) => patch({ spatialFactors: v })} placeholder="Add factor…" notify={notify} />
-        </div>
-        <div className="pt-card">
-          <div className="pt-label" style={{ marginBottom: 8 }}>Emotional factors</div>
-          <TagListEditor items={fw.emotionalFactors} onChange={(v) => patch({ emotionalFactors: v })} placeholder="Add factor…" notify={notify} />
-        </div>
-        <div className="pt-card">
-          <div className="pt-label" style={{ marginBottom: 8 }}>Behavioural factors</div>
-          <TagListEditor items={fw.behavioralFactors} onChange={(v) => patch({ behavioralFactors: v })} placeholder="Add factor…" notify={notify} />
-        </div>
-      </div>
-
-      <div className="pt-card" style={{ marginTop: 20 }}>
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 14 }}>Relationship diagram</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, flexWrap: "wrap", padding: "10px 0" }}>
-          <FrameworkNode label="Spatial" items={fw.spatialFactors} color="var(--thesis)" />
-          <ChevronRight color="var(--ink-faint)" />
-          <FrameworkNode label="Emotional" items={fw.emotionalFactors} color="var(--gold)" />
-          <ChevronRight color="var(--ink-faint)" />
-          <FrameworkNode label="Behavioural" items={fw.behavioralFactors} color="var(--french)" />
-        </div>
-      </div>
-    </div>
-  );
-}
-function FrameworkNode({ label, items, color }) {
-  return (
-    <div style={{ border: `1.5px solid ${color}`, borderRadius: 12, padding: "14px 18px", minWidth: 160, textAlign: "center" }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{items.length ? items.slice(0, 3).join(", ") : "—"}</div>
+    <div className="pt-table-wrap">
+      <table className="pt-table">
+        <thead>
+          <tr>
+            <th style={{ position: "sticky", left: 0, background: "var(--paper-raised)", minWidth: 180 }}>Title</th>
+            {LITERATURE_MATRIX_FIELDS.map((f) => (
+              <th key={f.key} style={{ cursor: "pointer", minWidth: f.width }} onClick={() => toggleSort(f.key)}>
+                {f.label}{sortKey === f.key ? (sortDir === 1 ? " ↑" : " ↓") : ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((a) => (
+            <tr key={a.id}>
+              <td style={{ fontWeight: 600, minWidth: 180, position: "sticky", left: 0, background: "var(--paper-raised)" }}>{a.title || "(untitled)"}</td>
+              {LITERATURE_MATRIX_FIELDS.map((f) => (
+                <td key={f.key}>
+                  {f.type === "bool" ? (
+                    <input type="checkbox" checked={!!a[f.key]} onChange={(e) => onChange(a.id, { [f.key]: e.target.checked })} />
+                  ) : (
+                    <input className="pt-input" style={{ minWidth: f.width, border: "none", background: "none", padding: "4px 2px" }} value={a[f.key] || ""} onChange={(e) => onChange(a.id, { [f.key]: e.target.value })} />
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1468,22 +1938,43 @@ function TimeTrackingTab({ ctx }) {
 /* =========================================================================
    GOALS SCREEN
    ========================================================================= */
-function GoalsScreen({ ctx }) {
-  const { subNav, setSubNav } = ctx;
-  const active = subNav || "internship";
+// Thin top-level wrappers — nav used to route these through a shared
+// "Goals" screen with a sub-tab switcher; now each is its own page.
+function FrenchScreen({ ctx }) {
   return (
     <div>
-      <div className="pt-eyebrow">Goals</div>
-      <h1 className="pt-h1">Internship · French · Chinese · Portfolio</h1>
-      <div className="pt-tabs" style={{ marginTop: 20 }}>
-        {[["internship", "Internship"], ["french", "French A2"], ["chinese", "Chinese HSK 3"], ["urbanism", "Urbanism Portfolio"]].map(([k, l]) => (
-          <div key={k} className={`pt-tab ${active === k ? "active" : ""}`} onClick={() => setSubNav(k)}>{l}</div>
-        ))}
-      </div>
-      {active === "internship" && <InternshipTab ctx={ctx} />}
-      {active === "french" && <FrenchTab ctx={ctx} />}
-      {active === "chinese" && <ChineseTab ctx={ctx} />}
-      {active === "urbanism" && <UrbanismTab ctx={ctx} />}
+      <div className="pt-eyebrow">Language</div>
+      <h1 className="pt-h1">French</h1>
+      <p className="pt-sub" style={{ marginBottom: 20 }}>Toward A2, {fmtDate(ctx.settings.frenchTarget)}.</p>
+      <FrenchTab ctx={ctx} />
+    </div>
+  );
+}
+function ChineseScreen({ ctx }) {
+  return (
+    <div>
+      <div className="pt-eyebrow">Language</div>
+      <h1 className="pt-h1">Chinese</h1>
+      <ChineseTab ctx={ctx} />
+    </div>
+  );
+}
+function InternshipScreen({ ctx }) {
+  return (
+    <div>
+      <div className="pt-eyebrow">Career</div>
+      <h1 className="pt-h1">Internship</h1>
+      <p className="pt-sub" style={{ marginBottom: 20 }}>{ctx.goals.internship.active ? "Active." : "Searching."}</p>
+      <InternshipTab ctx={ctx} />
+    </div>
+  );
+}
+function PortfolioScreen({ ctx }) {
+  return (
+    <div>
+      <div className="pt-eyebrow">Practice</div>
+      <h1 className="pt-h1">Portfolio</h1>
+      <UrbanismTab ctx={ctx} />
     </div>
   );
 }
@@ -1535,7 +2026,7 @@ function InternshipTab({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <MiniStat label="Applications this week" value={thisWeekCount} />
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="pt-btn" onClick={() => setShowActivate(true)}><Trophy size={14} /> I found an internship</button>
+          <button className="pt-btn" onClick={() => setShowActivate(true)}><Briefcase size={14} /> I found an internship</button>
           <button className="pt-btn pt-btn-primary" onClick={() => { setItem(blank()); setShowForm(true); }}><Plus size={14} /> Add application</button>
         </div>
       </div>
@@ -1893,7 +2384,7 @@ function FrenchProgress({ ctx }) {
         <MiniStat label="Curriculum" value={`${completed} / ${total}`} />
         <MiniStat label="Vocabulary" value={`${french.vocabBank.length} / ~${totalVocabTarget}`} />
         <MiniStat label="Days studied" value={french.daysStudied || 0} />
-        <MiniStat label="Current streak" value={`${french.streak || 0} 🔥`} />
+        <MiniStat label="Current streak" value={`${french.streak || 0} days`} />
       </div>
       <div className="pt-grid2" style={{ marginBottom: 20 }}>
         <div className="pt-card">
@@ -2039,7 +2530,7 @@ function UrbanismTab({ ctx }) {
 /* =========================================================================
    CALENDAR SCREEN
    ========================================================================= */
-const TASK_CATEGORIES = ["Thesis", "Internship", "French", "Chinese", "Urbanism", "Personal", "Other"];
+const TASK_CATEGORIES = ["Thesis", "Internship", "French", "Chinese", "Portfolio", "Personal", "Other"];
 function CalendarScreen({ ctx }) {
   const { calendar, saveCalendar, addXP, notify } = ctx;
   const [view, setView] = useState("agenda");
@@ -2219,104 +2710,17 @@ function DayView({ tasks, onToggle, onSelect }) {
 /* =========================================================================
    PROGRESS SCREEN (Weekly Review + XP)
    ========================================================================= */
-function ProgressScreen({ ctx }) {
-  const { meta, saveMeta, thesis, goals, calendar, settings, notify } = ctx;
-  const [reviewDraft, setReviewDraft] = useState({ achievement: "", nextWeek: ["", "", ""] });
-
-  const weekAgo = addDays(todayISO(), -7);
-  const tasksThisWeek = calendar.tasks.filter((t) => t.date >= weekAgo);
-  const completedThisWeek = tasksThisWeek.filter((t) => t.completed).length;
-  const timeThisWeek = thesis.timeLog.filter((t) => t.date >= weekAgo).reduce((s, t) => s + t.minutes, 0);
-
-  const thesisP = computeThesisProgress(thesis);
-  const frenchP = computeFrenchProgress(goals.french);
-  const chineseP = computeChineseProgress(goals.chinese, settings);
-  const internshipP = computeInternshipProgress(goals.internship);
-  const portfolioP = computePortfolioProgress(goals.urbanism || goals.portfolio);
-
-  function saveReview() {
-    if (!reviewDraft.achievement.trim()) return;
-    saveMeta((prev) => ({ ...prev, weeklyReviews: [{ id: uid(), date: todayISO(), ...reviewDraft }, ...prev.weeklyReviews] }));
-    setReviewDraft({ achievement: "", nextWeek: ["", "", ""] });
-    notify("Weekly review saved");
-  }
-
-  const xpData = useMemo(() => {
-    const byDate = {};
-    meta.xpLog.forEach((x) => { byDate[x.date] = (byDate[x.date] || 0) + x.amount; });
-    return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).slice(-14).map(([date, xp]) => ({ date: date.slice(5), xp }));
-  }, [meta.xpLog]);
-
-  return (
-    <div>
-      <div className="pt-eyebrow">Progress</div>
-      <h1 className="pt-h1">XP, streaks & weekly review</h1>
-
-      <div className="pt-grid3" style={{ margin: "22px 0" }}>
-        <MiniStat label="Total XP" value={meta.xp} />
-        <MiniStat label="Tasks this week" value={`${completedThisWeek} / ${tasksThisWeek.length}`} />
-        <MiniStat label="Thesis time this week" value={`${Math.floor(timeThisWeek / 60)}h ${timeThisWeek % 60}m`} />
-      </div>
-
-      {xpData.length > 0 && (
-        <div className="pt-card" style={{ height: 200, marginBottom: 22 }}>
-          <div className="pt-label" style={{ marginBottom: 8 }}>XP earned — last 14 active days</div>
-          <ResponsiveContainer width="100%" height="85%">
-            <BarChart data={xpData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--line-soft)" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="xp" fill="var(--gold)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      <div className="pt-card" style={{ marginBottom: 22 }}>
-        <div className="pt-h2" style={{ fontSize: 16, marginBottom: 14 }}>Weekly review</div>
-        <div className="pt-grid5" style={{ marginBottom: 16 }}>
-          {[["Thesis", thesisP], ["Internship", internshipP], ["French", frenchP], ["Chinese", chineseP], ["Portfolio", portfolioP]].map(([label, p]) => (
-            <div key={label}>
-              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 4 }}>{label}</div>
-              <div style={{ fontWeight: 700, fontFamily: "'IBM Plex Mono',monospace" }}>{p.pct}%</div>
-            </div>
-          ))}
-        </div>
-        <Field label="Biggest achievement this week"><textarea className="pt-textarea" value={reviewDraft.achievement} onChange={(e) => setReviewDraft({ ...reviewDraft, achievement: e.target.value })} /></Field>
-        <div className="pt-label" style={{ marginBottom: 6 }}>Next week — top 3 priorities</div>
-        {reviewDraft.nextWeek.map((v, i) => (
-          <input key={i} className="pt-input" style={{ marginBottom: 8 }} value={v} onChange={(e) => { const nw = [...reviewDraft.nextWeek]; nw[i] = e.target.value; setReviewDraft({ ...reviewDraft, nextWeek: nw }); }} />
-        ))}
-        {!reviewDraft.achievement.trim() && <div className="pt-field-error">Biggest achievement is required.</div>}
-        <button className="pt-btn pt-btn-primary" disabled={!reviewDraft.achievement.trim()} onClick={saveReview}><Check size={14} /> Save weekly review</button>
-      </div>
-
-      <div>
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 10 }}>Past reviews</div>
-        {meta.weeklyReviews.length === 0 ? <EmptyState text="No past reviews yet." /> : meta.weeklyReviews.map((r) => (
-          <div key={r.id} className="pt-card pt-card-tight" style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 }}>{fmtDate(r.date)}</div>
-            <div style={{ fontSize: 13 }}>{r.achievement}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>Next: {r.nextWeek.filter(Boolean).join(" · ")}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* =========================================================================
    SETTINGS SCREEN
    ========================================================================= */
 function SettingsScreen({ ctx }) {
-  const { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, onSignOut, notify } = ctx;
+  const { settings, saveSettings, thesis, saveThesis, goals, saveGoals, calendar, saveCalendar, meta, saveMeta, literature, saveLiterature, onSignOut, notify } = ctx;
   const [importError, setImportError] = useState("");
   const [pendingImport, setPendingImport] = useState(null);
   const fileInputRef = useRef(null);
 
   function exportData() {
-    const bundle = { exportedAt: new Date().toISOString(), settings, thesis, goals, calendar, meta };
+    const bundle = { exportedAt: new Date().toISOString(), settings, thesis, goals, calendar, meta, literature };
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2351,6 +2755,7 @@ function SettingsScreen({ ctx }) {
     if (bundle.goals) saveGoals(bundle.goals);
     if (bundle.calendar) saveCalendar(bundle.calendar);
     if (bundle.meta) saveMeta(bundle.meta);
+    if (bundle.literature) saveLiterature(bundle.literature);
     setPendingImport(null);
     notify("Import complete");
   }
@@ -2400,7 +2805,7 @@ function SettingsScreen({ ctx }) {
       {pendingImport && (
         <ConfirmDialog
           title="Overwrite all current data?"
-          message="Importing this file replaces settings, thesis, goals, calendar and progress with the contents of the backup. Your current data will be lost. This can't be undone."
+          message="Importing this file replaces settings, thesis, goals, calendar, progress and the literature library with the contents of the backup. Your current data will be lost. This can't be undone. Attached files in Storage are not affected."
           confirmLabel="Import and overwrite"
           danger
           onConfirm={confirmImport}
