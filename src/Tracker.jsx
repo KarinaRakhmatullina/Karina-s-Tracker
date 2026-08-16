@@ -65,7 +65,28 @@ const THESIS_SECTIONS_META = [
 ];
 
 function initThesisSections() {
-  return Object.fromEntries(THESIS_SECTIONS_META.map((s) => [s.key, { blocks: [] }]));
+  const base = Object.fromEntries(THESIS_SECTIONS_META.map((s) => [s.key, { blocks: [] }]));
+  // Framework carries two extra structured lists (concepts + relationships)
+  // alongside its freeform blocks, so literature and research questions
+  // have concrete, nameable things to link to instead of prose paragraphs.
+  base.framework = { blocks: [], concepts: [], relationships: [], conceptsSeeded: false };
+  return base;
+}
+
+// Seeds the framework with the thesis's actual conceptual chain (not a
+// placeholder example) — Spatial Characteristics → Emotional Experience →
+// Behavioral Patterns. Fully renamable/removable from the Framework tab.
+function seedFrameworkConcepts() {
+  const spatial = { id: uid(), name: "Spatial Characteristics", description: "" };
+  const emotional = { id: uid(), name: "Emotional Experience", description: "" };
+  const behavioral = { id: uid(), name: "Behavioral Patterns", description: "" };
+  return {
+    concepts: [spatial, emotional, behavioral],
+    relationships: [
+      { id: uid(), fromConceptId: spatial.id, toConceptId: emotional.id, label: "shapes" },
+      { id: uid(), fromConceptId: emotional.id, toConceptId: behavioral.id, label: "influences" },
+    ],
+  };
 }
 
 // Strategic components — each carries its own list of small daily actions,
@@ -76,9 +97,16 @@ function initThesisComponents() {
 }
 
 function initThesis() {
+  const sections = initThesisSections();
+  const seed = seedFrameworkConcepts();
+  sections.framework.concepts = seed.concepts;
+  sections.framework.relationships = seed.relationships;
+  sections.framework.conceptsSeeded = true;
   return {
-    sections: initThesisSections(),
+    sections,
     components: initThesisComponents(),
+    claims: [],
+    contradictions: [],
     questionnaire: {
       title: "", purpose: "", link: "", draftDate: "", supervisorReviewDate: "", pilotDate: "",
       launchDate: "", closingDate: "", targetParticipants: 200, currentResponses: 0, stage: "IDEA",
@@ -102,11 +130,7 @@ function initThesis() {
 // old `roadmap` / `framework` / embedded `literature` are replaced, but
 // nothing authored is discarded — the original framework logic + research
 // question are carried into the new sections as seed blocks.
-function migrateThesis(raw) {
-  if (!raw) return initThesis();
-  const alreadyCurrent = raw.sections && typeof raw.sections === "object" && Array.isArray(raw.components);
-  if (alreadyCurrent) return raw;
-
+function migrateThesisShape(raw) {
   const fresh = initThesis();
   const sections = initThesisSections();
   if (raw.framework && (raw.framework.logic || raw.framework.mainRQ)) {
@@ -124,6 +148,8 @@ function migrateThesis(raw) {
   return {
     sections,
     components: fresh.components,
+    claims: [],
+    contradictions: [],
     questionnaire: raw.questionnaire || fresh.questionnaire,
     questionBank: raw.questionBank || [],
     caseStudies: raw.caseStudies || [],
@@ -132,6 +158,37 @@ function migrateThesis(raw) {
     outputs: raw.outputs || [],
     timeLog: raw.timeLog || [],
   };
+}
+
+// Additive Phase 2 upgrade: fills in claims/contradictions/framework
+// concepts+relationships if missing, without touching anything already
+// written. Runs on every load (old rows AND rows already on the Phase 1
+// shape) so nothing needs a second migration flag.
+function ensureThesisLinks(t) {
+  const fw = t.sections.framework || { blocks: [] };
+  // conceptsSeeded (not concepts.length) gates the one-time seed, so
+  // deleting all concepts later — a legitimate, expected action — never
+  // silently brings the defaults back.
+  const alreadySeeded = fw.conceptsSeeded === true;
+  const seed = alreadySeeded
+    ? { concepts: Array.isArray(fw.concepts) ? fw.concepts : [], relationships: Array.isArray(fw.relationships) ? fw.relationships : [] }
+    : seedFrameworkConcepts();
+  return {
+    ...t,
+    claims: Array.isArray(t.claims) ? t.claims : [],
+    contradictions: Array.isArray(t.contradictions) ? t.contradictions : [],
+    sections: {
+      ...t.sections,
+      framework: { blocks: fw.blocks || [], concepts: seed.concepts, relationships: seed.relationships, conceptsSeeded: true },
+    },
+  };
+}
+
+function migrateThesis(raw) {
+  if (!raw) return initThesis();
+  const isPhase1Shape = raw.sections && typeof raw.sections === "object" && Array.isArray(raw.components);
+  const shaped = isPhase1Shape ? raw : migrateThesisShape(raw);
+  return ensureThesisLinks(shaped);
 }
 
 // Retro-planning: three phases spanning trackerStart → thesisMidterm.
@@ -187,6 +244,7 @@ function blankLiteratureArticle() {
     relevantEmotion: false, relevantBehavior: false, relevantSpace: false, relevantInformalLearning: false,
     relevanceToThesis: "", potentialGap: "", usedInThesis: false, chapter: "",
     status: "UNREAD", notes: "",
+    linkedConceptIds: [], linkedRelationshipIds: [],
   };
 }
 
@@ -231,6 +289,35 @@ function migrateLiteratureArticle(old) {
     status: old.status || "UNREAD",
     notes: old.notes || "",
   };
+}
+
+/* -------------------------------------------------------------------------
+   RESEARCH LINKS — reverse-lookup helpers. Every link below is stored once,
+   on the side where the linking action happens (an article picks its
+   concepts; an RQ picks its articles; a claim picks its evidence). These
+   just filter to produce the other direction for display — nothing is
+   ever stored twice.
+   ------------------------------------------------------------------------- */
+function articlesForConcept(literature, conceptId) {
+  return literature.articles.filter((a) => (a.linkedConceptIds || []).includes(conceptId));
+}
+function articlesForRelationship(literature, relationshipId) {
+  return literature.articles.filter((a) => (a.linkedRelationshipIds || []).includes(relationshipId));
+}
+function rqBlocksForArticle(thesis, articleId) {
+  return (thesis.sections.researchQuestions.blocks || []).filter((b) => (b.linkedArticleIds || []).includes(articleId));
+}
+function claimsForArticle(thesis, articleId) {
+  return (thesis.claims || []).filter((c) => (c.evidenceArticleIds || []).includes(articleId) || (c.contradictingArticleIds || []).includes(articleId));
+}
+function contradictionsForArticle(thesis, articleId) {
+  return (thesis.contradictions || []).filter((c) => c.articleAId === articleId || c.articleBId === articleId);
+}
+function supportLevelForRQ(block) {
+  const n = (block.linkedArticleIds || []).length;
+  if (n >= 3) return "STRONG SUPPORT";
+  if (n >= 1) return "WEAK SUPPORT";
+  return "GAP";
 }
 
 // Real, complete 14-module French A0→A2 curriculum outline (topics + grammar
@@ -409,6 +496,7 @@ function StatusPill({ status }) {
     "COLLECTING RESPONSES": "pt-pill-ontrack", "CLOSED": "pt-pill-completed",
     "PREPARING": "pt-pill-atrisk", "SUBMITTED": "pt-pill-atrisk", "UNDER REVIEW": "pt-pill-atrisk", "ACCEPTED": "pt-pill-ontrack",
     "PENDING": "pt-pill-neutral",
+    "STRONG SUPPORT": "pt-pill-ontrack", "WEAK SUPPORT": "pt-pill-atrisk", "GAP": "pt-pill-behind",
   };
   return <span className={`pt-pill ${map[status] || "pt-pill-neutral"}`}>{status}</span>;
 }
@@ -441,6 +529,26 @@ function Modal({ title, onClose, children, wide }) {
 
 function EmptyState({ text }) {
   return <div className="pt-empty">{text}</div>;
+}
+
+// Scrollable multi-select used everywhere a manual link needs picking from
+// an existing list (articles, framework concepts, methodology blocks…).
+function CheckboxList({ items, selectedIds, onChange, getLabel, emptyText }) {
+  if (items.length === 0) return <EmptyState text={emptyText || "Nothing to select yet."} />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflowY: "auto", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", padding: 10 }}>
+      {items.map((item) => (
+        <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(item.id)}
+            onChange={() => onChange(selectedIds.includes(item.id) ? selectedIds.filter((id) => id !== item.id) : [...selectedIds, item.id])}
+          />
+          {getLabel(item)}
+        </label>
+      ))}
+    </div>
+  );
 }
 
 // Generalized toast — same visual pattern as the original XP toast, extended
@@ -526,7 +634,11 @@ export default function Tracker({ onSignOut }) {
   useEffect(() => {
     if (!allLoaded || migratedRef.current) return;
     migratedRef.current = true;
-    const needsThesisUpgrade = !(thesisRaw && thesisRaw.sections && Array.isArray(thesisRaw.components));
+    const needsThesisUpgrade = !(
+      thesisRaw && thesisRaw.sections && Array.isArray(thesisRaw.components) &&
+      Array.isArray(thesisRaw.claims) && Array.isArray(thesisRaw.contradictions) &&
+      thesisRaw.sections.framework && thesisRaw.sections.framework.conceptsSeeded === true
+    );
     if (needsThesisUpgrade) saveThesis(migrateThesis(thesisRaw));
     const oldArticles = Array.isArray(thesisRaw && thesisRaw.literature) ? thesisRaw.literature : [];
     if (oldArticles.length > 0 && literature.articles.length === 0) {
@@ -872,6 +984,8 @@ function HomeScreen({ ctx }) {
 const THESIS_TABS = [
   { key: "plan", label: "Plan" },
   { key: "literature", label: "Literature" },
+  { key: "claims", label: "Claims" },
+  { key: "contradictions", label: "Contradictions" },
   ...THESIS_SECTIONS_META.map((s) => ({ key: s.key, label: `${s.number} · ${s.short}` })),
 ];
 
@@ -898,6 +1012,8 @@ function ThesisScreen({ ctx }) {
 
       {tab === "plan" && <ThesisPlanTab ctx={ctx} />}
       {tab === "literature" && <LiteratureScreen ctx={ctx} />}
+      {tab === "claims" && <ClaimsTab ctx={ctx} />}
+      {tab === "contradictions" && <ContradictionsTab ctx={ctx} />}
       {THESIS_SECTIONS_META.some((s) => s.key === tab) && <ThesisSectionTab ctx={ctx} sectionKey={tab} />}
 
       <div style={{ marginTop: 32, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1014,8 +1130,18 @@ function ThesisSectionTab({ ctx, sectionKey }) {
       <div className="pt-eyebrow">{meta.number}</div>
       <h2 className="pt-h2" style={{ marginBottom: 4 }}>{meta.title}</h2>
       <p className="pt-sub" style={{ marginBottom: 18 }}>{meta.description}</p>
-      <SectionEditor blocks={section.blocks} onChange={setBlocks} notify={notify} />
 
+      {sectionKey === "researchQuestions" ? (
+        <ResearchQuestionsEditor ctx={ctx} blocks={section.blocks} onChange={setBlocks} />
+      ) : (
+        <SectionEditor blocks={section.blocks} onChange={setBlocks} notify={notify} />
+      )}
+
+      {sectionKey === "framework" && (
+        <div style={{ marginTop: 32 }}>
+          <FrameworkConceptsPanel ctx={ctx} />
+        </div>
+      )}
       {sectionKey === "methodology" && (
         <div style={{ marginTop: 32 }}>
           <div className="pt-h2" style={{ fontSize: 16, marginBottom: 14 }}>Questionnaire</div>
@@ -1094,6 +1220,233 @@ function SectionEditor({ blocks, onChange, notify }) {
     </div>
   );
 }
+
+// Concepts + relationships live alongside the freeform framework blocks.
+// "Supported by" lists are derived from the literature store, not stored
+// here — the link itself is owned by the article (see LiteratureForm).
+function FrameworkConceptsPanel({ ctx }) {
+  const { thesis, saveThesis, literature, notify } = ctx;
+  const fw = thesis.sections.framework;
+  const [showConceptForm, setShowConceptForm] = useState(false);
+  const [conceptDraft, setConceptDraft] = useState(null);
+  const [showRelForm, setShowRelForm] = useState(false);
+  const [relDraft, setRelDraft] = useState(null);
+
+  function patchFramework(patch) {
+    saveThesis((prev) => ({ ...prev, sections: { ...prev.sections, framework: { ...prev.sections.framework, ...patch } } }));
+  }
+
+  function blankConcept() { return { id: null, name: "", description: "" }; }
+  function upsertConcept(c) {
+    const isNew = !fw.concepts.some((x) => x.id === c.id);
+    const next = isNew ? [...fw.concepts, { ...c, id: uid() }] : fw.concepts.map((x) => (x.id === c.id ? c : x));
+    patchFramework({ concepts: next });
+    notify(isNew ? "Concept added" : "Concept updated");
+  }
+  function removeConcept(id) {
+    const removed = fw.concepts.find((c) => c.id === id);
+    const keptRelationships = fw.relationships.filter((r) => r.fromConceptId !== id && r.toConceptId !== id);
+    const droppedRelationships = fw.relationships.filter((r) => r.fromConceptId === id || r.toConceptId === id);
+    patchFramework({ concepts: fw.concepts.filter((c) => c.id !== id), relationships: keptRelationships });
+    notify(
+      droppedRelationships.length > 0 ? `Concept removed (and ${droppedRelationships.length} relationship${droppedRelationships.length > 1 ? "s" : ""})` : "Concept removed",
+      () => patchFramework({ concepts: [...fw.concepts.filter((c) => c.id !== id), removed], relationships: [...keptRelationships, ...droppedRelationships] })
+    );
+  }
+  const canSaveConcept = !!(conceptDraft && conceptDraft.name.trim());
+
+  function blankRelationship() { return { id: null, fromConceptId: fw.concepts[0]?.id || "", toConceptId: fw.concepts[1]?.id || "", label: "" }; }
+  function upsertRelationship(r) {
+    const isNew = !fw.relationships.some((x) => x.id === r.id);
+    const next = isNew ? [...fw.relationships, { ...r, id: uid() }] : fw.relationships.map((x) => (x.id === r.id ? r : x));
+    patchFramework({ relationships: next });
+    notify(isNew ? "Relationship added" : "Relationship updated");
+  }
+  function removeRelationship(id) {
+    const removed = fw.relationships.find((r) => r.id === id);
+    patchFramework({ relationships: fw.relationships.filter((r) => r.id !== id) });
+    notify("Relationship removed", () => patchFramework({ relationships: [...fw.relationships.filter((r) => r.id !== id), removed] }));
+  }
+  const canSaveRel = !!(relDraft && relDraft.fromConceptId && relDraft.toConceptId && relDraft.fromConceptId !== relDraft.toConceptId);
+  function conceptName(id) { return fw.concepts.find((c) => c.id === id)?.name || "—"; }
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div className="pt-h2" style={{ fontSize: 16, margin: 0 }}>Concepts</div>
+        <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={() => { setConceptDraft(blankConcept()); setShowConceptForm(true); }}><Plus size={13} /> Add concept</button>
+      </div>
+      {fw.concepts.length === 0 ? <EmptyState text="No concepts yet." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+          {fw.concepts.map((c) => {
+            const supporting = articlesForConcept(literature, c.id);
+            return (
+              <div key={c.id} className="pt-card pt-card-tight">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{c.name}</div>
+                    {c.description && <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>{c.description}</div>}
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => { setConceptDraft(c); setShowConceptForm(true); }}><Edit3 size={13} /></button>
+                    <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => removeConcept(c.id)}><Trash2 size={13} /></button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 8 }}>
+                  {supporting.length === 0 ? "No articles linked yet." : `Supported by: ${supporting.map((a) => a.title || "(untitled)").join(", ")}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div className="pt-h2" style={{ fontSize: 16, margin: 0 }}>Relationships</div>
+        <button className="pt-btn pt-btn-sm pt-btn-primary" disabled={fw.concepts.length < 2} onClick={() => { setRelDraft(blankRelationship()); setShowRelForm(true); }}><Plus size={13} /> Add relationship</button>
+      </div>
+      {fw.concepts.length < 2 ? (
+        <EmptyState text="Add at least two concepts to connect them." />
+      ) : fw.relationships.length === 0 ? (
+        <EmptyState text="No relationships yet." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {fw.relationships.map((r) => {
+            const supporting = articlesForRelationship(literature, r.id);
+            return (
+              <div key={r.id} className="pt-card pt-card-tight">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                    {conceptName(r.fromConceptId)} {r.label ? `— ${r.label} →` : "→"} {conceptName(r.toConceptId)}
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => { setRelDraft(r); setShowRelForm(true); }}><Edit3 size={13} /></button>
+                    <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => removeRelationship(r.id)}><Trash2 size={13} /></button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 8 }}>
+                  {supporting.length === 0 ? "No articles linked yet." : `Supported by: ${supporting.map((a) => a.title || "(untitled)").join(", ")}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showConceptForm && (
+        <Modal title={conceptDraft.id ? "Edit concept" : "Add concept"} onClose={() => setShowConceptForm(false)}>
+          <Field label="Name"><input className="pt-input" value={conceptDraft.name} onChange={(e) => setConceptDraft({ ...conceptDraft, name: e.target.value })} /></Field>
+          <Field label="Description (optional)"><textarea className="pt-textarea" value={conceptDraft.description} onChange={(e) => setConceptDraft({ ...conceptDraft, description: e.target.value })} /></Field>
+          {!canSaveConcept && <div className="pt-field-error">Name is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveConcept} onClick={() => { upsertConcept(conceptDraft); setShowConceptForm(false); }}>Save</button>
+        </Modal>
+      )}
+      {showRelForm && (
+        <Modal title={relDraft.id ? "Edit relationship" : "Add relationship"} onClose={() => setShowRelForm(false)}>
+          <Field label="From concept">
+            <select className="pt-select" value={relDraft.fromConceptId} onChange={(e) => setRelDraft({ ...relDraft, fromConceptId: e.target.value })}>
+              {fw.concepts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Relationship label (e.g. 'shapes', 'reduces')"><input className="pt-input" value={relDraft.label} onChange={(e) => setRelDraft({ ...relDraft, label: e.target.value })} /></Field>
+          <Field label="To concept">
+            <select className="pt-select" value={relDraft.toConceptId} onChange={(e) => setRelDraft({ ...relDraft, toConceptId: e.target.value })}>
+              {fw.concepts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+          {!canSaveRel && <div className="pt-field-error">Pick two different concepts.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSaveRel} onClick={() => { upsertRelationship(relDraft); setShowRelForm(false); }}>Save</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// Specialized editor for section 04 — same block shape as SectionEditor,
+// extended with links to articles, framework concepts and methodology
+// notes, plus a free-text gap note and a derived support-level pill.
+function ResearchQuestionsEditor({ ctx, blocks, onChange }) {
+  const { thesis, literature, notify } = ctx;
+  const [showForm, setShowForm] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const concepts = thesis.sections.framework.concepts;
+  const methodBlocks = thesis.sections.methodology.blocks;
+
+  function blank() { return { id: null, label: "", text: "", linkedArticleIds: [], linkedConceptIds: [], linkedMethodologyBlockIds: [], gapNote: "" }; }
+  function upsert(b) {
+    const isNew = !blocks.some((x) => x.id === b.id);
+    const next = isNew
+      ? [...blocks, { ...b, id: uid(), createdAt: todayISO() }]
+      : blocks.map((x) => (x.id === b.id ? { ...x, ...b, updatedAt: todayISO() } : x));
+    onChange(next);
+    notify(isNew ? "Research question added" : "Research question updated");
+  }
+  function remove(id) {
+    const prevBlocks = blocks;
+    onChange(blocks.filter((b) => b.id !== id));
+    notify("Research question removed", () => onChange(prevBlocks));
+  }
+  const canSave = !!(draft && draft.text.trim());
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button className="pt-btn pt-btn-primary" onClick={() => { setDraft(blank()); setShowForm(true); }}><Plus size={14} /> Add research question</button>
+      </div>
+      {blocks.length === 0 ? <EmptyState text="No research questions yet. Add RQ1 to start." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {blocks.map((b) => {
+            const linkedArticles = literature.articles.filter((a) => (b.linkedArticleIds || []).includes(a.id));
+            const linkedConcepts = concepts.filter((c) => (b.linkedConceptIds || []).includes(c.id));
+            const linkedMethods = methodBlocks.filter((m) => (b.linkedMethodologyBlockIds || []).includes(m.id));
+            return (
+              <div key={b.id} className="pt-card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{b.label || "Untitled"}</div>
+                    <StatusPill status={supportLevelForRQ(b)} />
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => { setDraft({ ...blank(), ...b }); setShowForm(true); }}><Edit3 size={14} /></button>
+                    <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => remove(b.id)}><Trash2 size={14} /></button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--ink-soft)", marginBottom: 10 }}>{b.text}</div>
+                {(linkedArticles.length > 0 || linkedConcepts.length > 0 || linkedMethods.length > 0) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {linkedArticles.map((a) => <span key={a.id} className="pt-chip">{a.title || "(untitled)"}</span>)}
+                    {linkedConcepts.map((c) => <span key={c.id} className="pt-chip" style={{ background: "var(--thesis-soft)", color: "var(--thesis)" }}>{c.name}</span>)}
+                    {linkedMethods.length > 0 && <span className="pt-chip">{linkedMethods.length} methodology note{linkedMethods.length > 1 ? "s" : ""}</span>}
+                  </div>
+                )}
+                {b.gapNote && <div style={{ fontSize: 12, color: "var(--behind)", marginTop: 8 }}>Gap: {b.gapNote}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {showForm && (
+        <Modal title={draft.id ? "Edit research question" : "Add research question"} onClose={() => setShowForm(false)} wide>
+          <Field label="Label (e.g. 'RQ1')"><input className="pt-input" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></Field>
+          <Field label="Question text"><textarea className="pt-textarea" style={{ minHeight: 100 }} value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} /></Field>
+          <Field label="Linked articles">
+            <CheckboxList items={literature.articles} selectedIds={draft.linkedArticleIds} onChange={(ids) => setDraft({ ...draft, linkedArticleIds: ids })} getLabel={(a) => `${a.title || "(untitled)"}${a.year ? ` (${a.year})` : ""}`} emptyText="No articles in the library yet." />
+          </Field>
+          <Field label="Linked framework concepts">
+            <CheckboxList items={concepts} selectedIds={draft.linkedConceptIds} onChange={(ids) => setDraft({ ...draft, linkedConceptIds: ids })} getLabel={(c) => c.name} emptyText="No concepts defined yet — add some in 03 Conceptual Framework." />
+          </Field>
+          <Field label="Linked methodology notes">
+            <CheckboxList items={methodBlocks} selectedIds={draft.linkedMethodologyBlockIds} onChange={(ids) => setDraft({ ...draft, linkedMethodologyBlockIds: ids })} getLabel={(m) => m.label || "Untitled"} emptyText="No methodology notes written yet — add some in 05 Methodology." />
+          </Field>
+          <Field label="Research gap (free text)"><textarea className="pt-textarea" value={draft.gapNote} onChange={(e) => setDraft({ ...draft, gapNote: e.target.value })} /></Field>
+          {!canSave && <div className="pt-field-error">Question text is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => { upsert(draft); setShowForm(false); }}>Save</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function MiniStat({ label, value }) {
   return (
     <div className="pt-card pt-card-tight">
@@ -1126,7 +1479,7 @@ async function openLiteratureFile(filePath) {
 }
 
 function LiteratureScreen({ ctx }) {
-  const { literature, saveLiterature, notify } = ctx;
+  const { literature, saveLiterature, thesis, notify } = ctx;
   const [view, setView] = useState("library");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -1206,7 +1559,7 @@ function LiteratureScreen({ ctx }) {
       ) : view === "library" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((a) => (
-            <LiteratureCard key={a.id} article={a} notify={notify} onEdit={() => { setEditItem(a); setShowForm(true); }} onDelete={() => setConfirmDeleteId(a.id)} />
+            <LiteratureCard key={a.id} article={a} thesis={thesis} notify={notify} onEdit={() => { setEditItem(a); setShowForm(true); }} onDelete={() => setConfirmDeleteId(a.id)} />
           ))}
         </div>
       ) : (
@@ -1214,7 +1567,7 @@ function LiteratureScreen({ ctx }) {
       )}
 
       {showForm && (
-        <LiteratureForm item={editItem} notify={notify} onClose={() => setShowForm(false)} onSave={(a) => { upsert(a); setShowForm(false); }} />
+        <LiteratureForm item={editItem} thesis={thesis} notify={notify} onClose={() => setShowForm(false)} onSave={(a) => { upsert(a); setShowForm(false); }} />
       )}
       {confirmDeleteId && (
         <ConfirmDialog
@@ -1230,7 +1583,16 @@ function LiteratureScreen({ ctx }) {
   );
 }
 
-function LiteratureCard({ article, notify, onEdit, onDelete }) {
+function LiteratureCard({ article, thesis, notify, onEdit, onDelete }) {
+  const allConcepts = thesis.sections.framework.concepts;
+  const conceptName = (id) => allConcepts.find((c) => c.id === id)?.name || "—";
+  const concepts = allConcepts.filter((c) => (article.linkedConceptIds || []).includes(c.id));
+  const relationships = thesis.sections.framework.relationships.filter((r) => (article.linkedRelationshipIds || []).includes(r.id));
+  const rqs = rqBlocksForArticle(thesis, article.id);
+  const claims = claimsForArticle(thesis, article.id);
+  const contradictions = contradictionsForArticle(thesis, article.id);
+  const hasConnections = concepts.length || relationships.length || rqs.length || claims.length || contradictions.length;
+
   return (
     <div className="pt-card" style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -1244,6 +1606,15 @@ function LiteratureCard({ article, notify, onEdit, onDelete }) {
           {article.authors}{article.year ? `, ${article.year}` : ""}{article.journal ? ` · ${article.journal}` : ""}
         </div>
         {article.relevanceToThesis && <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 6 }}>{article.relevanceToThesis}</div>}
+        {hasConnections > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            {concepts.map((c) => <span key={c.id} className="pt-chip" style={{ background: "var(--thesis-soft)", color: "var(--thesis)" }}>{c.name}</span>)}
+            {relationships.map((r) => <span key={r.id} className="pt-chip" style={{ background: "var(--thesis-soft)", color: "var(--thesis)" }}>{conceptName(r.fromConceptId)} → {conceptName(r.toConceptId)}</span>)}
+            {rqs.length > 0 && <span className="pt-chip">{rqs.length} RQ{rqs.length > 1 ? "s" : ""}</span>}
+            {claims.length > 0 && <span className="pt-chip">{claims.length} claim{claims.length > 1 ? "s" : ""}</span>}
+            {contradictions.length > 0 && <span className="pt-chip">{contradictions.length} contradiction{contradictions.length > 1 ? "s" : ""}</span>}
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         {article.filePath && <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => openLiteratureFile(article.filePath).catch((e) => notify("Couldn't open file: " + String(e.message || e)))}><ExternalLink size={14} /></button>}
@@ -1261,8 +1632,9 @@ const LITERATURE_RELEVANCE_FLAGS = [
   ["relevantInformalLearning", "Informal learning"],
 ];
 
-function LiteratureForm({ item, notify, onClose, onSave }) {
-  const [draft, setDraft] = useState(item);
+function LiteratureForm({ item, thesis, notify, onClose, onSave }) {
+  const [draft, setDraft] = useState({ ...blankLiteratureArticle(), ...item });
+  const fw = thesis.sections.framework;
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -1364,6 +1736,22 @@ function LiteratureForm({ item, notify, onClose, onSave }) {
         </div>
       </div>
 
+      <div className="pt-card pt-card-tight" style={{ marginBottom: 16 }}>
+        <div className="pt-label" style={{ marginBottom: 12 }}>Framework links</div>
+        <Field label="Concepts this article supports">
+          <CheckboxList items={fw.concepts} selectedIds={draft.linkedConceptIds} onChange={(ids) => setDraft({ ...draft, linkedConceptIds: ids })} getLabel={(c) => c.name} emptyText="No concepts defined yet — add some in 03 Conceptual Framework." />
+        </Field>
+        <Field label="Relationships this article supports">
+          <CheckboxList
+            items={fw.relationships}
+            selectedIds={draft.linkedRelationshipIds}
+            onChange={(ids) => setDraft({ ...draft, linkedRelationshipIds: ids })}
+            getLabel={(r) => `${fw.concepts.find((c) => c.id === r.fromConceptId)?.name || "—"} → ${fw.concepts.find((c) => c.id === r.toConceptId)?.name || "—"}`}
+            emptyText="No relationships defined yet — add some in 03 Conceptual Framework."
+          />
+        </Field>
+      </div>
+
       <Field label="Notes"><textarea className="pt-textarea" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></Field>
 
       {error && <div className="pt-field-error">{error}</div>}
@@ -1431,6 +1819,168 @@ function LiteratureMatrix({ articles, onChange }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function blankClaim() { return { id: null, text: "", evidenceArticleIds: [], contradictingArticleIds: [], interpretation: "" }; }
+
+// "Research Claims" — a claim, the literature that backs or contradicts
+// it, and a free-text interpretation. Same list/modal/undo pattern as
+// every other thesis sub-panel.
+function ClaimsTab({ ctx }) {
+  const { thesis, saveThesis, literature, notify } = ctx;
+  const claims = thesis.claims;
+  const [showForm, setShowForm] = useState(false);
+  const [draft, setDraft] = useState(null);
+
+  function upsert(c) {
+    const isNew = !claims.some((x) => x.id === c.id);
+    saveThesis((prev) => ({ ...prev, claims: isNew ? [{ ...c, id: uid() }, ...prev.claims] : prev.claims.map((x) => (x.id === c.id ? c : x)) }));
+    notify(isNew ? "Claim added" : "Claim updated");
+  }
+  function remove(id) {
+    const removed = claims.find((c) => c.id === id);
+    saveThesis((prev) => ({ ...prev, claims: prev.claims.filter((c) => c.id !== id) }));
+    notify("Claim removed", () => saveThesis((prev) => (prev.claims.some((c) => c.id === id) ? prev : { ...prev, claims: [removed, ...prev.claims] })));
+  }
+  const canSave = !!(draft && draft.text.trim());
+  function articleTitle(id) { return literature.articles.find((a) => a.id === id)?.title || "(untitled)"; }
+
+  return (
+    <div>
+      <p className="pt-sub" style={{ marginBottom: 16 }}>Research claims you're building, with the literature that supports or contradicts each one.</p>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button className="pt-btn pt-btn-primary" onClick={() => { setDraft(blankClaim()); setShowForm(true); }}><Plus size={14} /> Add claim</button>
+      </div>
+      {claims.length === 0 ? <EmptyState text="No claims yet." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {claims.map((c) => (
+            <div key={c.id} className="pt-card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{c.text}</div>
+                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => { setDraft(c); setShowForm(true); }}><Edit3 size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => remove(c.id)}><Trash2 size={14} /></button>
+                </div>
+              </div>
+              <div className="pt-grid2">
+                <div>
+                  <div className="pt-label" style={{ marginBottom: 6 }}>Evidence ({c.evidenceArticleIds.length})</div>
+                  {c.evidenceArticleIds.length === 0 ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>None yet.</div> : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                      {c.evidenceArticleIds.map((id) => <span key={id} className="pt-chip">{articleTitle(id)}</span>)}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="pt-label" style={{ marginBottom: 6 }}>Contradicting ({c.contradictingArticleIds.length})</div>
+                  {c.contradictingArticleIds.length === 0 ? <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>None yet.</div> : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                      {c.contradictingArticleIds.map((id) => <span key={id} className="pt-chip" style={{ background: "#F7E7E2", color: "var(--behind)" }}>{articleTitle(id)}</span>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {c.interpretation && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line-soft)" }}>
+                  <div className="pt-label" style={{ marginBottom: 4 }}>My interpretation</div>
+                  <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>{c.interpretation}</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <Modal title={draft.id ? "Edit claim" : "Add claim"} onClose={() => setShowForm(false)} wide>
+          <Field label="Claim"><textarea className="pt-textarea" style={{ minHeight: 80 }} value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} /></Field>
+          <div className="pt-grid2">
+            <Field label="Evidence (supporting articles)">
+              <CheckboxList items={literature.articles} selectedIds={draft.evidenceArticleIds} onChange={(ids) => setDraft({ ...draft, evidenceArticleIds: ids })} getLabel={(a) => a.title || "(untitled)"} emptyText="No articles in the library yet." />
+            </Field>
+            <Field label="Contradicting articles">
+              <CheckboxList items={literature.articles} selectedIds={draft.contradictingArticleIds} onChange={(ids) => setDraft({ ...draft, contradictingArticleIds: ids })} getLabel={(a) => a.title || "(untitled)"} emptyText="No articles in the library yet." />
+            </Field>
+          </div>
+          <Field label="My interpretation"><textarea className="pt-textarea" value={draft.interpretation} onChange={(e) => setDraft({ ...draft, interpretation: e.target.value })} /></Field>
+          {!canSave && <div className="pt-field-error">Claim text is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => { upsert(draft); setShowForm(false); }}>Save</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function blankContradiction() { return { id: null, articleAId: "", articleBId: "", note: "" }; }
+
+// Direct disagreements between two specific sources — kept as its own
+// consultable list rather than buried inside each article's edit form.
+function ContradictionsTab({ ctx }) {
+  const { thesis, saveThesis, literature, notify } = ctx;
+  const contradictions = thesis.contradictions;
+  const [showForm, setShowForm] = useState(false);
+  const [draft, setDraft] = useState(null);
+
+  function upsert(c) {
+    const isNew = !contradictions.some((x) => x.id === c.id);
+    saveThesis((prev) => ({ ...prev, contradictions: isNew ? [{ ...c, id: uid() }, ...prev.contradictions] : prev.contradictions.map((x) => (x.id === c.id ? c : x)) }));
+    notify(isNew ? "Contradiction added" : "Contradiction updated");
+  }
+  function remove(id) {
+    const removed = contradictions.find((c) => c.id === id);
+    saveThesis((prev) => ({ ...prev, contradictions: prev.contradictions.filter((c) => c.id !== id) }));
+    notify("Contradiction removed", () => saveThesis((prev) => (prev.contradictions.some((c) => c.id === id) ? prev : { ...prev, contradictions: [removed, ...prev.contradictions] })));
+  }
+  const canSave = !!(draft && draft.articleAId && draft.articleBId && draft.articleAId !== draft.articleBId && draft.note.trim());
+  function articleTitle(id) { return literature.articles.find((a) => a.id === id)?.title || "(untitled)"; }
+
+  return (
+    <div>
+      <p className="pt-sub" style={{ marginBottom: 16 }}>Direct disagreements between two specific sources — e.g. one finds an effect, the other doesn't.</p>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button className="pt-btn pt-btn-primary" disabled={literature.articles.length < 2} onClick={() => { setDraft(blankContradiction()); setShowForm(true); }}><Plus size={14} /> Add contradiction</button>
+      </div>
+      {literature.articles.length < 2 ? (
+        <EmptyState text="Add at least two articles to the library first." />
+      ) : contradictions.length === 0 ? (
+        <EmptyState text="No contradictions logged yet." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {contradictions.map((c) => (
+            <div key={c.id} className="pt-card pt-card-tight">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{articleTitle(c.articleAId)} ↔ {articleTitle(c.articleBId)}</div>
+                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  <button className="pt-btn pt-btn-ghost pt-tap" onClick={() => { setDraft(c); setShowForm(true); }}><Edit3 size={13} /></button>
+                  <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => remove(c.id)}><Trash2 size={13} /></button>
+                </div>
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 8 }}>{c.note}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {showForm && (
+        <Modal title={draft.id ? "Edit contradiction" : "Add contradiction"} onClose={() => setShowForm(false)}>
+          <Field label="Article A">
+            <select className="pt-select" value={draft.articleAId} onChange={(e) => setDraft({ ...draft, articleAId: e.target.value })}>
+              <option value="">Select an article…</option>
+              {literature.articles.map((a) => <option key={a.id} value={a.id}>{a.title || "(untitled)"}</option>)}
+            </select>
+          </Field>
+          <Field label="Article B">
+            <select className="pt-select" value={draft.articleBId} onChange={(e) => setDraft({ ...draft, articleBId: e.target.value })}>
+              <option value="">Select an article…</option>
+              {literature.articles.map((a) => <option key={a.id} value={a.id}>{a.title || "(untitled)"}</option>)}
+            </select>
+          </Field>
+          <Field label="Nature of the disagreement"><textarea className="pt-textarea" placeholder="e.g. Paper A finds a positive effect, Paper B finds no significant effect…" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} /></Field>
+          {!canSave && <div className="pt-field-error">Pick two different articles and describe the disagreement.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => { upsert(draft); setShowForm(false); }}>Save</button>
+        </Modal>
+      )}
     </div>
   );
 }
