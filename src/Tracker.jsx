@@ -447,6 +447,10 @@ function generateFrenchLessons(startISO, endISO) {
   return lessons;
 }
 
+function blankFrenchCertification() {
+  return { chosenCert: "", customCertName: "", registrationDate: "", examDate: "", resultsDate: "" };
+}
+
 function initGoals() {
   return {
     internship: { applications: [], active: null },
@@ -455,6 +459,7 @@ function initGoals() {
       lessons: generateFrenchLessons("2026-08-15", "2026-10-31"),
       vocabBank: [],
       currentDayIndex: 0,
+      certification: blankFrenchCertification(),
     },
     chinese: { logs: [], vocabCount: 0, totalMinutes: 0 },
     portfolio: {
@@ -2693,14 +2698,16 @@ function FrenchTab({ ctx }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-        {[["today", "Today's Lesson"], ["curriculum", "Curriculum"], ["vocab", "Vocabulary Bank"], ["progress", "Progress"]].map(([k, l]) => (
+        {[["today", "Today's Lesson"], ["history", "Lesson History"], ["curriculum", "Curriculum"], ["vocab", "Vocabulary Bank"], ["progress", "Progress"], ["certification", "Certification"]].map(([k, l]) => (
           <button key={k} className="pt-btn pt-btn-sm" style={{ background: sub === k ? "var(--french-soft)" : undefined, color: sub === k ? "var(--french)" : undefined, borderColor: sub === k ? "var(--french)" : undefined }} onClick={() => setSub(k)}>{l}</button>
         ))}
       </div>
       {sub === "today" && <FrenchToday ctx={ctx} />}
+      {sub === "history" && <FrenchHistory ctx={ctx} />}
       {sub === "curriculum" && <FrenchCurriculum ctx={ctx} />}
       {sub === "vocab" && <FrenchVocab ctx={ctx} />}
       {sub === "progress" && <FrenchProgress ctx={ctx} />}
+      {sub === "certification" && <FrenchCertification ctx={ctx} />}
     </div>
   );
 }
@@ -2750,43 +2757,54 @@ function FrenchToday({ ctx }) {
         </div>
       )}
       <div className="pt-card">
-        <div className="pt-eyebrow">Day {lesson.dayNumber} · {lesson.moduleTitle} {lesson.isReview && "· Review Day"}</div>
-        <div className="pt-h2" style={{ marginTop: 4, marginBottom: 16 }}>{lesson.title}</div>
-
-        <LessonSection title="Grammar" items={lesson.grammar} icon={BookOpen} />
-        {lesson.vocabulary.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div className="pt-label" style={{ marginBottom: 8 }}>Vocabulary</div>
-            <div className="pt-grid3">
-              {lesson.vocabulary.map((v, i) => (
-                <div key={i} className="pt-card pt-card-tight">
-                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>{v.fr}</div>
-                  <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{v.en}</div>
-                  <div className="pt-chip" style={{ marginTop: 6 }}>{v.category}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {lesson.vocabulary.length === 0 && lesson.vocabTheme && (
-          <div style={{ marginBottom: 16, fontSize: 12.5, color: "var(--ink-soft)" }}>
-            Vocabulary theme: <strong>{lesson.vocabTheme}</strong> (10–20 words). Add words to the Vocabulary Bank as you learn them.
-          </div>
-        )}
-        {lesson.phrases.length > 0 && <LessonSection title="Useful Phrases" items={lesson.phrases} icon={MessageSquare} />}
-        <div className="pt-grid2">
-          <LessonBlock title="Listening" icon={Mic} text={lesson.listening} />
-          <LessonBlock title="Speaking" icon={Users} text={lesson.speaking} />
-          <LessonBlock title="Reading" icon={FileText} text={lesson.reading} />
-          <LessonBlock title="Writing" icon={Edit3} text={lesson.writing} />
-        </div>
-        <LessonBlock title="Review" icon={ClipboardList} text={lesson.review} />
+        <LessonContent lesson={lesson} />
 
         <div className="pt-grid2" style={{ marginTop: 16, alignItems: "end" }}>
           <Field label="Minutes completed today"><input type="number" className="pt-input" value={minutes} onChange={(e) => setMinutes(e.target.value)} /></Field>
           <button className="pt-btn pt-btn-primary" onClick={markComplete}><Check size={14} /> Mark lesson complete</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Shared lesson-body renderer — used by "Today's Lesson" and by the
+// Lesson History detail view so re-opening a past lesson shows exactly
+// the same content instead of a stripped-down summary.
+function LessonContent({ lesson }) {
+  return (
+    <div>
+      <div className="pt-eyebrow">Day {lesson.dayNumber} · {lesson.moduleTitle} {lesson.isReview && "· Review Day"}</div>
+      <div className="pt-h2" style={{ marginTop: 4, marginBottom: 16 }}>{lesson.title}</div>
+
+      <LessonSection title="Grammar" items={lesson.grammar} icon={BookOpen} />
+      {lesson.vocabulary.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div className="pt-label" style={{ marginBottom: 8 }}>Vocabulary</div>
+          <div className="pt-grid3">
+            {lesson.vocabulary.map((v, i) => (
+              <div key={i} className="pt-card pt-card-tight">
+                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{v.fr}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{v.en}</div>
+                <div className="pt-chip" style={{ marginTop: 6 }}>{v.category}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {lesson.vocabulary.length === 0 && lesson.vocabTheme && (
+        <div style={{ marginBottom: 16, fontSize: 12.5, color: "var(--ink-soft)" }}>
+          Vocabulary theme: <strong>{lesson.vocabTheme}</strong> (10–20 words). Add words to the Vocabulary Bank as you learn them.
+        </div>
+      )}
+      {lesson.phrases.length > 0 && <LessonSection title="Useful Phrases" items={lesson.phrases} icon={MessageSquare} />}
+      <div className="pt-grid2">
+        <LessonBlock title="Listening" icon={Mic} text={lesson.listening} />
+        <LessonBlock title="Speaking" icon={Users} text={lesson.speaking} />
+        <LessonBlock title="Reading" icon={FileText} text={lesson.reading} />
+        <LessonBlock title="Writing" icon={Edit3} text={lesson.writing} />
+      </div>
+      <LessonBlock title="Review" icon={ClipboardList} text={lesson.review} />
     </div>
   );
 }
@@ -2806,6 +2824,126 @@ function LessonBlock({ title, text, icon: Icon }) {
     <div className="pt-card pt-card-tight" style={{ marginBottom: 12 }}>
       <div className="pt-label" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}><Icon size={13} /> {title}</div>
       <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>{text}</div>
+    </div>
+  );
+}
+
+function lessonSearchHaystack(lesson) {
+  return [
+    lesson.title, lesson.moduleTitle, lesson.vocabTheme,
+    ...(lesson.grammar || []), ...(lesson.phrases || []),
+    ...(lesson.vocabulary || []).flatMap((v) => [v.fr, v.en]),
+    lesson.listening, lesson.speaking, lesson.reading, lesson.writing, lesson.review,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+// Every generated lesson, browsable and reopenable — not just the current
+// one. Marking complete/incomplete here corrects daysStudied/totalMinutes
+// but deliberately leaves the streak and XP untouched: streak is a
+// today-relative concept owned by the "Today" flow, and retroactive
+// corrections shouldn't be a source of XP.
+function FrenchHistory({ ctx }) {
+  const { goals, saveGoals, notify } = ctx;
+  const french = goals.french;
+  const [search, setSearch] = useState("");
+  const [moduleFilter, setModuleFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [selectedId, setSelectedId] = useState(null);
+
+  const filtered = useMemo(() => {
+    let list = french.lessons;
+    if (moduleFilter !== "ALL") list = list.filter((l) => l.moduleId === moduleFilter);
+    if (statusFilter !== "ALL") list = list.filter((l) => (statusFilter === "COMPLETED" ? l.status === "COMPLETED" : l.status !== "COMPLETED"));
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((l) => lessonSearchHaystack(l).includes(q));
+    }
+    return list;
+  }, [french.lessons, search, moduleFilter, statusFilter]);
+
+  const selectedIndex = selectedId ? french.lessons.findIndex((l) => l.id === selectedId) : -1;
+  const selected = selectedIndex >= 0 ? french.lessons[selectedIndex] : null;
+
+  function toggleComplete(lesson) {
+    const prevFrench = french;
+    const willComplete = lesson.status !== "COMPLETED";
+    const minutesUsed = lesson.minutesSpent || lesson.targetMinutes || 0;
+    saveGoals((prev) => {
+      const idx = prev.french.lessons.findIndex((l) => l.id === lesson.id);
+      const nextLessons = [...prev.french.lessons];
+      nextLessons[idx] = { ...nextLessons[idx], status: willComplete ? "COMPLETED" : "PENDING", minutesSpent: willComplete ? (nextLessons[idx].minutesSpent || nextLessons[idx].targetMinutes || 0) : nextLessons[idx].minutesSpent };
+      return {
+        ...prev,
+        french: {
+          ...prev.french,
+          lessons: nextLessons,
+          daysStudied: Math.max(0, (prev.french.daysStudied || 0) + (willComplete ? 1 : -1)),
+          totalMinutes: Math.max(0, (prev.french.totalMinutes || 0) + (willComplete ? minutesUsed : -minutesUsed)),
+        },
+      };
+    });
+    notify(willComplete ? "Lesson marked complete" : "Lesson marked incomplete", () => saveGoals((prev) => ({ ...prev, french: prevFrench })));
+  }
+
+  if (selected) {
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <button className="pt-btn pt-btn-sm" onClick={() => setSelectedId(null)}><ChevronLeft size={13} /> Back to history</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="pt-btn pt-btn-sm" disabled={selectedIndex <= 0} onClick={() => setSelectedId(french.lessons[selectedIndex - 1].id)}><ChevronLeft size={13} /> Previous lesson</button>
+            <button className="pt-btn pt-btn-sm" disabled={selectedIndex >= french.lessons.length - 1} onClick={() => setSelectedId(french.lessons[selectedIndex + 1].id)}>Next lesson <ChevronRight size={13} /></button>
+          </div>
+        </div>
+        <div className="pt-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 4 }}>
+            <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{fmtDate(selected.date)}</div>
+            <StatusPill status={selected.status} />
+          </div>
+          <LessonContent lesson={selected} />
+          <button className="pt-btn pt-btn-primary" style={{ marginTop: 16 }} onClick={() => toggleComplete(selected)}>
+            <Check size={14} /> {selected.status === "COMPLETED" ? "Mark as not complete" : "Mark lesson complete"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "1 1 220px" }}>
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-faint)" }} />
+          <input className="pt-input" style={{ paddingLeft: 30 }} placeholder="Search title, grammar, vocabulary…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className="pt-select" style={{ width: 200 }} value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
+          <option value="ALL">All modules</option>
+          {french.modules.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+        </select>
+        <select className="pt-select" style={{ width: 160 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="ALL">All statuses</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="PENDING">Not completed</option>
+        </select>
+      </div>
+      {filtered.length === 0 ? <EmptyState text="No lessons match your search or filters." /> : (
+        <div className="pt-table-wrap">
+          <table className="pt-table">
+            <thead><tr><th>Day</th><th>Title</th><th>Module</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+              {filtered.map((l) => (
+                <tr key={l.id} style={{ cursor: "pointer" }} onClick={() => setSelectedId(l.id)}>
+                  <td>{l.dayNumber}</td>
+                  <td style={{ fontWeight: 600, maxWidth: 260 }}>{l.title}</td>
+                  <td>{l.moduleTitle}</td>
+                  <td>{fmtDate(l.date)}</td>
+                  <td><StatusPill status={l.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -2919,9 +3057,17 @@ function FrenchProgress({ ctx }) {
   const { goals, settings, saveSettings } = ctx;
   const french = goals.french;
   const total = french.lessons.length;
-  const completed = french.lessons.filter((l) => l.status === "COMPLETED").length;
+  const completedLessons = french.lessons.filter((l) => l.status === "COMPLETED");
+  const completed = completedLessons.length;
   const level = completed < total * 0.15 ? "A0" : completed < total * 0.55 ? "A1" : "A2";
   const totalVocabTarget = total * 15;
+  const vocabKnown = french.vocabBank.filter((v) => v.status === "KNOWN").length;
+
+  const grammarCovered = useMemo(() => {
+    const seen = new Set();
+    completedLessons.forEach((l) => (l.grammar || []).forEach((g) => seen.add(g)));
+    return Array.from(seen);
+  }, [completedLessons]);
 
   const chartData = useMemo(() => {
     return french.lessons.filter((l) => l.status === "COMPLETED").slice(-14).map((l) => ({ day: `D${l.dayNumber}`, minutes: l.minutesSpent }));
@@ -2932,11 +3078,20 @@ function FrenchProgress({ ctx }) {
       <div className="pt-grid5" style={{ marginBottom: 20 }}>
         <MiniStat label="Level" value={level} />
         <MiniStat label="Curriculum" value={`${completed} / ${total}`} />
-        <MiniStat label="Vocabulary" value={`${french.vocabBank.length} / ~${totalVocabTarget}`} />
+        <MiniStat label="Vocabulary known" value={`${vocabKnown} / ${french.vocabBank.length}`} />
+        <MiniStat label="Vocabulary logged" value={`${french.vocabBank.length} / ~${totalVocabTarget}`} />
+        <MiniStat label="Grammar topics covered" value={grammarCovered.length} />
         <MiniStat label="Days studied" value={french.daysStudied || 0} />
         <MiniStat label="Current streak" value={`${french.streak || 0} days`} />
       </div>
-      <div className="pt-grid2" style={{ marginBottom: 20 }}>
+      {grammarCovered.length > 0 && (
+        <Collapsible title="Grammar topics covered" subtitle={`${grammarCovered.length} topics from completed lessons`}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+            {grammarCovered.map((g) => <span key={g} className="pt-chip">{g}</span>)}
+          </div>
+        </Collapsible>
+      )}
+      <div className="pt-grid2" style={{ marginTop: 20, marginBottom: 20 }}>
         <div className="pt-card">
           <div className="pt-label" style={{ marginBottom: 8 }}>A0 → A1 → A2</div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -2967,6 +3122,48 @@ function FrenchProgress({ ctx }) {
           </ResponsiveContainer>
         </div>
       )}
+    </div>
+  );
+}
+
+const FRENCH_CERT_OPTIONS = ["DELF A2", "TCF", "TEF", "Other"];
+
+// Nothing presumed: no certification is pre-selected and no dates are
+// pre-filled — every field starts blank/TBC until Karina sets it herself.
+function FrenchCertification({ ctx }) {
+  const { goals, saveGoals } = ctx;
+  const cert = goals.french.certification || blankFrenchCertification();
+
+  function patch(p) {
+    saveGoals((prev) => ({ ...prev, french: { ...prev.french, certification: { ...(prev.french.certification || blankFrenchCertification()), ...p } } }));
+  }
+
+  return (
+    <div>
+      <div className="pt-card">
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Certification</div>
+        {!cert.chosenCert && (
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 14 }}>
+            <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} color="var(--atrisk)" />
+            Choose certification — pick which French certificate you're aiming for so the exam timeline can be tracked.
+          </div>
+        )}
+        <Field label="Certification">
+          <select className="pt-select" value={cert.chosenCert} onChange={(e) => patch({ chosenCert: e.target.value })}>
+            <option value="">Choose certification…</option>
+            {FRENCH_CERT_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        {cert.chosenCert === "Other" && (
+          <Field label="Certification name"><input className="pt-input" value={cert.customCertName} onChange={(e) => patch({ customCertName: e.target.value })} /></Field>
+        )}
+        <div className="pt-grid3">
+          <Field label="Registration date"><input type="date" className="pt-input" value={cert.registrationDate} onChange={(e) => patch({ registrationDate: e.target.value })} /></Field>
+          <Field label="Exam date"><input type="date" className="pt-input" value={cert.examDate} onChange={(e) => patch({ examDate: e.target.value })} /></Field>
+          <Field label="Results date"><input type="date" className="pt-input" value={cert.resultsDate} onChange={(e) => patch({ resultsDate: e.target.value })} /></Field>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>All dates optional — leave blank until confirmed (TBC).</div>
+      </div>
     </div>
   );
 }
