@@ -5,7 +5,7 @@ import {
   Plus, X, Check, ChevronRight, ChevronLeft, ChevronDown, Download, Upload, Sparkles,
   AlertTriangle, CheckCircle2, Circle, Briefcase, Languages, Building2,
   Loader2, Edit3, Trash2, Info, LogOut, Search, Paperclip, ExternalLink,
-  Lock, Table2, LayoutList
+  Lock, Table2, LayoutList, Volume2
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TOKENS, FontLoader } from "./theme";
@@ -41,6 +41,7 @@ function initSettings() {
     chineseTarget: "2026-12-15",
     portfolioTarget: "2026-10-05",
     dailyFrenchMinutes: 75,
+    dailyChineseWords: 5,
   };
 }
 
@@ -451,6 +452,116 @@ function blankFrenchCertification() {
   return { chosenCert: "", customCertName: "", registrationDate: "", examDate: "", resultsDate: "" };
 }
 
+/* -------------------------------------------------------------------------
+   CHINESE FLASHCARDS
+   CHINESE_SEED_VOCAB is a personally curated starter list of common
+   HSK1–3 band words (not pulled from an official HSK3 wordlist) — good
+   enough to get daily flashcards going, but worth spot-checking against
+   a textbook. Every card is fully editable/removable once generated.
+   ------------------------------------------------------------------------- */
+const CHINESE_SEED_VOCAB = [
+  { hanzi: "你好", pinyin: "nǐ hǎo", meaning: "hello", exampleSentence: "你好，我叫玛丽。", exampleTranslation: "Hello, my name is Mary." },
+  { hanzi: "谢谢", pinyin: "xièxie", meaning: "thank you", exampleSentence: "谢谢你的帮助。", exampleTranslation: "Thank you for your help." },
+  { hanzi: "时间", pinyin: "shíjiān", meaning: "time", exampleSentence: "我没有时间。", exampleTranslation: "I don't have time." },
+  { hanzi: "朋友", pinyin: "péngyou", meaning: "friend", exampleSentence: "她是我的好朋友。", exampleTranslation: "She is my good friend." },
+  { hanzi: "学习", pinyin: "xuéxí", meaning: "to study", exampleSentence: "我每天学习中文。", exampleTranslation: "I study Chinese every day." },
+  { hanzi: "工作", pinyin: "gōngzuò", meaning: "work / to work", exampleSentence: "他在北京工作。", exampleTranslation: "He works in Beijing." },
+  { hanzi: "高兴", pinyin: "gāoxìng", meaning: "happy", exampleSentence: "认识你我很高兴。", exampleTranslation: "I'm happy to meet you." },
+  { hanzi: "喜欢", pinyin: "xǐhuan", meaning: "to like", exampleSentence: "我喜欢喝茶。", exampleTranslation: "I like drinking tea." },
+  { hanzi: "因为", pinyin: "yīnwèi", meaning: "because", exampleSentence: "因为下雨，我没有去。", exampleTranslation: "Because it rained, I didn't go." },
+  { hanzi: "所以", pinyin: "suǒyǐ", meaning: "so / therefore", exampleSentence: "我很累，所以我要休息。", exampleTranslation: "I'm tired, so I want to rest." },
+  { hanzi: "但是", pinyin: "dànshì", meaning: "but", exampleSentence: "我想去，但是没有时间。", exampleTranslation: "I want to go, but I don't have time." },
+  { hanzi: "已经", pinyin: "yǐjīng", meaning: "already", exampleSentence: "他已经走了。", exampleTranslation: "He has already left." },
+  { hanzi: "一直", pinyin: "yìzhí", meaning: "always / continuously", exampleSentence: "我一直很忙。", exampleTranslation: "I've been busy the whole time." },
+  { hanzi: "还是", pinyin: "háishi", meaning: "or (in questions) / still", exampleSentence: "你要咖啡还是茶？", exampleTranslation: "Do you want coffee or tea?" },
+  { hanzi: "或者", pinyin: "huòzhě", meaning: "or", exampleSentence: "你可以坐公交车或者地铁。", exampleTranslation: "You can take the bus or the subway." },
+  { hanzi: "如果", pinyin: "rúguǒ", meaning: "if", exampleSentence: "如果明天下雨，我们就不去。", exampleTranslation: "If it rains tomorrow, we won't go." },
+  { hanzi: "虽然", pinyin: "suīrán", meaning: "although", exampleSentence: "虽然很难，但是我会努力。", exampleTranslation: "Although it's hard, I will try hard." },
+  { hanzi: "然后", pinyin: "ránhòu", meaning: "then / afterwards", exampleSentence: "我先吃饭，然后去上班。", exampleTranslation: "I eat first, then go to work." },
+  { hanzi: "觉得", pinyin: "juéde", meaning: "to feel / to think", exampleSentence: "我觉得这个电影很好看。", exampleTranslation: "I think this movie is very good." },
+  { hanzi: "认为", pinyin: "rènwéi", meaning: "to believe / to think", exampleSentence: "我认为他是对的。", exampleTranslation: "I believe he is right." },
+  { hanzi: "需要", pinyin: "xūyào", meaning: "to need", exampleSentence: "我需要你的帮助。", exampleTranslation: "I need your help." },
+  { hanzi: "机会", pinyin: "jīhuì", meaning: "opportunity", exampleSentence: "这是一个好机会。", exampleTranslation: "This is a good opportunity." },
+  { hanzi: "经验", pinyin: "jīngyàn", meaning: "experience", exampleSentence: "他有很多工作经验。", exampleTranslation: "He has a lot of work experience." },
+  { hanzi: "生活", pinyin: "shēnghuó", meaning: "life", exampleSentence: "我喜欢我的生活。", exampleTranslation: "I like my life." },
+  { hanzi: "问题", pinyin: "wèntí", meaning: "problem / question", exampleSentence: "我有一个问题。", exampleTranslation: "I have a question." },
+  { hanzi: "意思", pinyin: "yìsi", meaning: "meaning", exampleSentence: "这个词是什么意思？", exampleTranslation: "What does this word mean?" },
+  { hanzi: "便宜", pinyin: "piányi", meaning: "cheap", exampleSentence: "这个手机很便宜。", exampleTranslation: "This phone is cheap." },
+  { hanzi: "贵", pinyin: "guì", meaning: "expensive", exampleSentence: "那家饭店太贵了。", exampleTranslation: "That restaurant is too expensive." },
+  { hanzi: "快", pinyin: "kuài", meaning: "fast", exampleSentence: "他走得很快。", exampleTranslation: "He walks very fast." },
+  { hanzi: "慢", pinyin: "màn", meaning: "slow", exampleSentence: "请说慢一点。", exampleTranslation: "Please speak a bit slower." },
+  { hanzi: "忙", pinyin: "máng", meaning: "busy", exampleSentence: "我今天很忙。", exampleTranslation: "I'm very busy today." },
+  { hanzi: "累", pinyin: "lèi", meaning: "tired", exampleSentence: "我今天很累。", exampleTranslation: "I'm very tired today." },
+  { hanzi: "打算", pinyin: "dǎsuàn", meaning: "to plan", exampleSentence: "我打算明年去中国。", exampleTranslation: "I plan to go to China next year." },
+  { hanzi: "希望", pinyin: "xīwàng", meaning: "to hope", exampleSentence: "我希望你能来。", exampleTranslation: "I hope you can come." },
+  { hanzi: "决定", pinyin: "juédìng", meaning: "to decide", exampleSentence: "她决定学习中文。", exampleTranslation: "She decided to study Chinese." },
+  { hanzi: "准备", pinyin: "zhǔnbèi", meaning: "to prepare", exampleSentence: "我在准备考试。", exampleTranslation: "I am preparing for the exam." },
+  { hanzi: "考试", pinyin: "kǎoshì", meaning: "exam", exampleSentence: "下周有一个考试。", exampleTranslation: "There is an exam next week." },
+  { hanzi: "记得", pinyin: "jìde", meaning: "to remember", exampleSentence: "我记得他的名字。", exampleTranslation: "I remember his name." },
+  { hanzi: "忘记", pinyin: "wàngjì", meaning: "to forget", exampleSentence: "我忘记带钱包了。", exampleTranslation: "I forgot to bring my wallet." },
+  { hanzi: "告诉", pinyin: "gàosu", meaning: "to tell", exampleSentence: "请告诉我你的名字。", exampleTranslation: "Please tell me your name." },
+  { hanzi: "应该", pinyin: "yīnggāi", meaning: "should", exampleSentence: "你应该早点睡觉。", exampleTranslation: "You should sleep earlier." },
+  { hanzi: "可能", pinyin: "kěnéng", meaning: "maybe / possible", exampleSentence: "明天可能会下雨。", exampleTranslation: "It might rain tomorrow." },
+  { hanzi: "一定", pinyin: "yídìng", meaning: "definitely", exampleSentence: "我一定会来。", exampleTranslation: "I will definitely come." },
+  { hanzi: "特别", pinyin: "tèbié", meaning: "especially / special", exampleSentence: "这个地方特别漂亮。", exampleTranslation: "This place is especially beautiful." },
+  { hanzi: "其实", pinyin: "qíshí", meaning: "actually", exampleSentence: "其实我不喜欢咖啡。", exampleTranslation: "Actually, I don't like coffee." },
+  { hanzi: "一般", pinyin: "yìbān", meaning: "generally / ordinary", exampleSentence: "我一般七点起床。", exampleTranslation: "I generally get up at 7." },
+  { hanzi: "突然", pinyin: "tūrán", meaning: "suddenly", exampleSentence: "他突然站起来了。", exampleTranslation: "He suddenly stood up." },
+  { hanzi: "提前", pinyin: "tíqián", meaning: "in advance", exampleSentence: "请提前告诉我。", exampleTranslation: "Please tell me in advance." },
+  { hanzi: "环境", pinyin: "huánjìng", meaning: "environment", exampleSentence: "这里的环境很好。", exampleTranslation: "The environment here is very good." },
+  { hanzi: "关系", pinyin: "guānxi", meaning: "relationship", exampleSentence: "他们的关系很好。", exampleTranslation: "Their relationship is good." },
+];
+
+// Simple, explicit spaced-repetition intervals (not SM-2) — editable here
+// if a better schedule is found.
+const CHINESE_REVIEW_INTERVALS = { DIFFICULT: 0, NEED_REVIEW: 1, LEARNED: 3, MASTERED: 7 };
+
+function blankChineseFlashcard() {
+  return {
+    id: null,
+    hanzi: "", pinyin: "", meaning: "", exampleSentence: "", exampleTranslation: "",
+    status: "NEW", // NEW, then one of DIFFICULT / NEED_REVIEW / LEARNED / MASTERED after first review
+    nextReviewDate: null,
+    lastReviewedDate: null,
+    addedDate: todayISO(),
+    isCustom: false,
+  };
+}
+
+function blankChineseExam() {
+  return {
+    registrationDate: "2026-12-03", examDate: "2026-12-13", resultsDate: "",
+    confirmed: false, // unofficial-dates badge shows until Karina confirms or edits
+  };
+}
+
+// Safe-upgrade for accounts created before flashcards existed — goals.chinese
+// used to be just {logs, vocabCount, totalMinutes}. Never overwrites
+// anything already present, only fills in what's missing.
+function ensureChineseShape(chinese) {
+  const c = chinese || {};
+  return {
+    logs: Array.isArray(c.logs) ? c.logs : [],
+    vocabCount: c.vocabCount || 0,
+    totalMinutes: c.totalMinutes || 0,
+    flashcards: Array.isArray(c.flashcards) ? c.flashcards : [],
+    streak: c.streak || 0,
+    daysStudied: c.daysStudied || 0,
+    lastStudyDate: c.lastStudyDate || null,
+    exam: c.exam || blankChineseExam(),
+  };
+}
+function normalizeGoals(raw) {
+  if (!raw) return initGoals();
+  return { ...raw, chinese: ensureChineseShape(raw.chinese) };
+}
+function chineseGoalsNeedsUpgrade(raw) {
+  return !(
+    raw && raw.chinese && Array.isArray(raw.chinese.flashcards) &&
+    typeof raw.chinese.streak === "number" && raw.chinese.exam
+  );
+}
+
 function initGoals() {
   return {
     internship: { applications: [], active: null },
@@ -461,7 +572,11 @@ function initGoals() {
       currentDayIndex: 0,
       certification: blankFrenchCertification(),
     },
-    chinese: { logs: [], vocabCount: 0, totalMinutes: 0 },
+    chinese: {
+      logs: [], vocabCount: 0, totalMinutes: 0,
+      flashcards: [], streak: 0, daysStudied: 0, lastStudyDate: null,
+      exam: blankChineseExam(),
+    },
     portfolio: {
       stage: "RESEARCH",
       stages: ["RESEARCH", "SITE", "PROBLEM", "USERS", "CONCEPT", "URBAN STRATEGY", "DEVELOPMENT", "VISUALIZATION", "FINAL CASE STUDY"],
@@ -502,8 +617,10 @@ function StatusPill({ status }) {
     "PREPARING": "pt-pill-atrisk", "SUBMITTED": "pt-pill-atrisk", "UNDER REVIEW": "pt-pill-atrisk", "ACCEPTED": "pt-pill-ontrack",
     "PENDING": "pt-pill-neutral",
     "STRONG SUPPORT": "pt-pill-ontrack", "WEAK SUPPORT": "pt-pill-atrisk", "GAP": "pt-pill-behind",
+    "NEW": "pt-pill-neutral", "DIFFICULT": "pt-pill-behind", "NEED_REVIEW": "pt-pill-atrisk",
+    "LEARNED": "pt-pill-ontrack", "MASTERED": "pt-pill-completed",
   };
-  return <span className={`pt-pill ${map[status] || "pt-pill-neutral"}`}>{status}</span>;
+  return <span className={`pt-pill ${map[status] || "pt-pill-neutral"}`}>{String(status).replace(/_/g, " ")}</span>;
 }
 
 function ProgressBar({ pct, color }) {
@@ -616,7 +733,7 @@ function Collapsible({ title, subtitle, defaultOpen, children }) {
 export default function Tracker({ onSignOut }) {
   const [settings, saveSettings, sLoaded] = useStore("settings", initSettings);
   const [thesisRaw, saveThesis, tLoaded] = useStore("thesis", initThesis);
-  const [goals, saveGoals, gLoaded] = useStore("goals", initGoals);
+  const [goalsRaw, saveGoals, gLoaded] = useStore("goals", initGoals);
   const [calendar, saveCalendar, cLoaded] = useStore("calendar", initCalendar);
   const [meta, saveMeta, mLoaded] = useStore("meta", initMeta);
   const [literature, saveLiterature, lLoaded] = useStore("literature", initLiterature);
@@ -628,14 +745,15 @@ export default function Tracker({ onSignOut }) {
 
   const allLoaded = sLoaded && tLoaded && gLoaded && cLoaded && mLoaded && lLoaded;
 
-  // Render-safe: always compute the current-shape thesis, even before the
-  // one-time upgrade below has persisted back to Supabase.
+  // Render-safe: always compute the current-shape thesis/goals, even before
+  // the one-time upgrade below has persisted back to Supabase.
   const thesis = useMemo(() => migrateThesis(thesisRaw), [thesisRaw]);
+  const goals = useMemo(() => normalizeGoals(goalsRaw), [goalsRaw]);
 
-  // One-time upgrade: old accounts (pre 11-section rebuild) get their
-  // thesis row rewritten to the new shape, and any articles that used to
-  // live inside thesis.literature are moved into their own store. Runs
-  // once per load, only if needed.
+  // One-time upgrade: old accounts (pre 11-section rebuild / pre-flashcards)
+  // get their thesis and goals rows rewritten to the current shape, and any
+  // articles that used to live inside thesis.literature are moved into
+  // their own store. Runs once per load, only if needed.
   useEffect(() => {
     if (!allLoaded || migratedRef.current) return;
     migratedRef.current = true;
@@ -645,6 +763,7 @@ export default function Tracker({ onSignOut }) {
       thesisRaw.sections.framework && thesisRaw.sections.framework.conceptsSeeded === true
     );
     if (needsThesisUpgrade) saveThesis(migrateThesis(thesisRaw));
+    if (chineseGoalsNeedsUpgrade(goalsRaw)) saveGoals(normalizeGoals(goalsRaw));
     const oldArticles = Array.isArray(thesisRaw && thesisRaw.literature) ? thesisRaw.literature : [];
     if (oldArticles.length > 0 && literature.articles.length === 0) {
       saveLiterature({ articles: oldArticles.map(migrateLiteratureArticle) });
@@ -773,10 +892,11 @@ function computeChineseProgress(chinese, settings) {
   const daysElapsed = Math.max(0, daysBetween(settings.trackerStart, todayISO()));
   const timePct = Math.min(100, Math.round((daysElapsed / totalDays) * 100));
   const wordTarget = 1200; // realistic HSK3 vocabulary size, used only to compute a display percentage
-  const pct = Math.min(100, Math.round((chinese.vocabCount / wordTarget) * 100));
+  const wordsLearned = (chinese.flashcards || []).filter((c) => c.status === "MASTERED" || c.status === "LEARNED").length;
+  const pct = Math.min(100, Math.round((wordsLearned / wordTarget) * 100));
   let status = "ON TRACK";
   if (pct < timePct - 20) status = "BEHIND"; else if (pct < timePct - 8) status = "AT RISK";
-  return { pct, current: `${chinese.vocabCount} words logged`, next: "Log today's study session", status, wordTarget };
+  return { pct, current: `${wordsLearned} words learned`, next: "Review today's flashcards", status, wordTarget };
 }
 function computeInternshipProgress(internship) {
   if (internship.active) return { pct: 100, current: internship.active.company, next: internship.active.position || "Active internship", status: "ON TRACK" };
@@ -3168,11 +3288,197 @@ function FrenchCertification({ ctx }) {
   );
 }
 
+/* =========================================================================
+   CHINESE — daily flashcards, permanent history, progress, HSK exam.
+   ========================================================================= */
+
+// Web Speech API only — no paid TTS service. Feature-detected throughout;
+// the speak button simply doesn't render if no zh voice is available.
+function speakChinese(text) {
+  if (!("speechSynthesis" in window)) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const zhVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("zh"));
+  utter.lang = zhVoice ? zhVoice.lang : "zh-CN";
+  if (zhVoice) utter.voice = zhVoice;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
+}
+function useChineseVoiceAvailable() {
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+    function check() {
+      const voices = window.speechSynthesis.getVoices();
+      setAvailable(voices.some((v) => v.lang && v.lang.toLowerCase().startsWith("zh")));
+    }
+    check();
+    window.speechSynthesis.addEventListener("voiceschanged", check);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", check);
+  }, []);
+  return available;
+}
+function SpeakButton({ text, size }) {
+  const available = useChineseVoiceAvailable();
+  if (!available) return null;
+  return (
+    <button className="pt-btn pt-btn-ghost pt-tap" onClick={(e) => { e.stopPropagation(); speakChinese(text); }} title="Play pronunciation">
+      <Volume2 size={size || 14} />
+    </button>
+  );
+}
+
+const CHINESE_STATUS_LABELS = { NEW: "New", DIFFICULT: "Difficult", NEED_REVIEW: "Need Review", LEARNED: "Learned", MASTERED: "Mastered" };
+
+function ensureTodayChineseCards(chinese, dailyCount) {
+  const today = todayISO();
+  const alreadyToday = chinese.flashcards.filter((c) => c.addedDate === today && !c.isCustom).length;
+  const need = dailyCount - alreadyToday;
+  if (need <= 0) return chinese.flashcards;
+  const existingHanzi = new Set(chinese.flashcards.map((c) => c.hanzi));
+  const available = CHINESE_SEED_VOCAB.filter((w) => !existingHanzi.has(w.hanzi));
+  if (available.length === 0) return chinese.flashcards;
+  const toAdd = available.slice(0, need).map((w) => ({ ...blankChineseFlashcard(), ...w, id: uid(), addedDate: today }));
+  return [...chinese.flashcards, ...toAdd];
+}
+function dueChineseCards(chinese) {
+  const today = todayISO();
+  return chinese.flashcards.filter((c) => c.status === "NEW" || !c.nextReviewDate || c.nextReviewDate <= today);
+}
+function effectiveChineseStreak(chinese) {
+  if (!chinese.lastStudyDate) return 0;
+  return daysBetween(chinese.lastStudyDate, todayISO()) > 1 ? 0 : (chinese.streak || 0);
+}
+
 function ChineseTab({ ctx }) {
-  const { goals, saveGoals, settings, saveSettings, addXP } = ctx;
+  const [sub, setSub] = useState("today");
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+        {[["today", "Today's Review"], ["history", "Flashcard History"], ["progress", "Progress"], ["exam", "HSK Exam"]].map(([k, l]) => (
+          <button key={k} className="pt-btn pt-btn-sm" style={{ background: sub === k ? "var(--chinese-soft)" : undefined, color: sub === k ? "var(--chinese)" : undefined, borderColor: sub === k ? "var(--chinese)" : undefined }} onClick={() => setSub(k)}>{l}</button>
+        ))}
+      </div>
+      {sub === "today" && <ChineseToday ctx={ctx} />}
+      {sub === "history" && <ChineseHistory ctx={ctx} />}
+      {sub === "progress" && <ChineseProgress ctx={ctx} />}
+      {sub === "exam" && <ChineseExam ctx={ctx} />}
+    </div>
+  );
+}
+
+function ChineseToday({ ctx }) {
+  const { goals, saveGoals, settings, addXP, notify } = ctx;
+  const chinese = goals.chinese;
+  const dailyCount = settings.dailyChineseWords || 5;
+  const [revealedId, setRevealedId] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  useEffect(() => {
+    const today = todayISO();
+    const alreadyToday = chinese.flashcards.filter((c) => c.addedDate === today && !c.isCustom).length;
+    if (alreadyToday >= dailyCount) return;
+    saveGoals((prev) => {
+      const nextCards = ensureTodayChineseCards(prev.chinese, dailyCount);
+      return nextCards === prev.chinese.flashcards ? prev : { ...prev, chinese: { ...prev.chinese, flashcards: nextCards } };
+    });
+    // eslint-disable-next-line
+  }, [chinese.flashcards.length, dailyCount]);
+
+  const due = useMemo(() => dueChineseCards(chinese), [chinese.flashcards]);
+
+  function reviewCard(card, status) {
+    const prevChinese = chinese;
+    const isFirstToday = chinese.lastStudyDate !== todayISO();
+    saveGoals((prev) => {
+      const idx = prev.chinese.flashcards.findIndex((c) => c.id === card.id);
+      const nextCards = [...prev.chinese.flashcards];
+      const days = CHINESE_REVIEW_INTERVALS[status];
+      nextCards[idx] = { ...nextCards[idx], status, lastReviewedDate: todayISO(), nextReviewDate: addDays(todayISO(), days) };
+      return {
+        ...prev,
+        chinese: {
+          ...prev.chinese,
+          flashcards: nextCards,
+          streak: isFirstToday ? effectiveChineseStreak(prev.chinese) + 1 : prev.chinese.streak,
+          daysStudied: isFirstToday ? (prev.chinese.daysStudied || 0) + 1 : prev.chinese.daysStudied,
+          lastStudyDate: todayISO(),
+        },
+      };
+    });
+    setRevealedId(null);
+    notify(`Marked ${CHINESE_STATUS_LABELS[status]}`, () => saveGoals((prev) => ({ ...prev, chinese: prevChinese })));
+    if (isFirstToday) addXP(10, "Chinese flashcards reviewed");
+  }
+
+  return (
+    <div>
+      <div className="pt-card" style={{ marginBottom: 20 }}>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Due for review</div>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 14 }}>{dailyCount} new words/day, configurable in Settings.</div>
+        {due.length === 0 ? <EmptyState text="Nothing due right now — check back tomorrow, or add your own words." /> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {due.map((card) => (
+              <ChineseCardRow key={card.id} card={card} revealed={revealedId === card.id} onReveal={() => setRevealedId(card.id)} onReview={(status) => reviewCard(card, status)} />
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+        <button className="pt-btn" onClick={() => setShowAddForm(true)}><Plus size={14} /> Add your own word</button>
+      </div>
+      <ChineseSessionLog ctx={ctx} />
+      {showAddForm && (
+        <ChineseCardForm
+          item={blankChineseFlashcard()}
+          onClose={() => setShowAddForm(false)}
+          onSave={(c) => {
+            saveGoals((prev) => ({ ...prev, chinese: { ...prev.chinese, flashcards: [{ ...c, isCustom: true }, ...prev.chinese.flashcards] } }));
+            notify("Word added");
+            setShowAddForm(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChineseCardRow({ card, revealed, onReveal, onReview }) {
+  return (
+    <div className="pt-card pt-card-tight">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{card.hanzi}</span>
+          <SpeakButton text={card.hanzi} />
+        </div>
+        {!revealed && <button className="pt-btn pt-btn-sm" onClick={onReveal}>Show answer</button>}
+      </div>
+      {revealed && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{card.pinyin} — {card.meaning}</div>
+          {card.exampleSentence && (
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 6 }}>
+              {card.exampleSentence}<br />{card.exampleTranslation}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="pt-btn pt-btn-sm pt-btn-danger" onClick={() => onReview("DIFFICULT")}>Difficult</button>
+            <button className="pt-btn pt-btn-sm" onClick={() => onReview("NEED_REVIEW")}>Need Review</button>
+            <button className="pt-btn pt-btn-sm" onClick={() => onReview("LEARNED")}>Learned</button>
+            <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={() => onReview("MASTERED")}>Mastered</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Kept separate from flashcard review — time spent listening/reading/class
+// time doesn't map to any one card, so it stays a simple session log.
+function ChineseSessionLog({ ctx }) {
+  const { goals, saveGoals, addXP } = ctx;
   const chinese = goals.chinese;
   const [form, setForm] = useState({ words: 20, minutes: 30, notes: "" });
-  const daysLeft = daysBetween(todayISO(), settings.chineseTarget);
 
   function logToday() {
     saveGoals((prev) => ({
@@ -3187,41 +3493,248 @@ function ChineseTab({ ctx }) {
     setForm({ words: 20, minutes: 30, notes: "" });
   }
 
-  const progress = computeChineseProgress(chinese, settings);
+  return (
+    <div className="pt-card">
+      <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Log a study session</div>
+      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 12 }}>For time spent beyond flashcards — listening, reading, class time…</div>
+      <div className="pt-grid3">
+        <Field label="Words"><input type="number" className="pt-input" value={form.words} onChange={(e) => setForm({ ...form, words: e.target.value })} /></Field>
+        <Field label="Minutes spent"><input type="number" className="pt-input" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} /></Field>
+        <Field label="Notes"><input className="pt-input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+      </div>
+      <button className="pt-btn pt-btn-primary" onClick={logToday}><Plus size={14} /> Log session</button>
+    </div>
+  );
+}
+
+function ChineseCardForm({ item, onClose, onSave }) {
+  const [draft, setDraft] = useState({ ...blankChineseFlashcard(), ...item });
+  const canSave = draft.hanzi.trim().length > 0;
+  return (
+    <Modal title={draft.id ? "Edit word" : "Add word"} onClose={onClose}>
+      <Field label="Chinese characters"><input className="pt-input" value={draft.hanzi} onChange={(e) => setDraft({ ...draft, hanzi: e.target.value })} /></Field>
+      <div className="pt-grid2">
+        <Field label="Pinyin"><input className="pt-input" value={draft.pinyin} onChange={(e) => setDraft({ ...draft, pinyin: e.target.value })} /></Field>
+        <Field label="Meaning"><input className="pt-input" value={draft.meaning} onChange={(e) => setDraft({ ...draft, meaning: e.target.value })} /></Field>
+      </div>
+      <Field label="Example sentence"><input className="pt-input" value={draft.exampleSentence} onChange={(e) => setDraft({ ...draft, exampleSentence: e.target.value })} /></Field>
+      <Field label="Example translation"><input className="pt-input" value={draft.exampleTranslation} onChange={(e) => setDraft({ ...draft, exampleTranslation: e.target.value })} /></Field>
+      <Field label="Status">
+        <select className="pt-select" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
+          {Object.keys(CHINESE_STATUS_LABELS).map((s) => <option key={s} value={s}>{CHINESE_STATUS_LABELS[s]}</option>)}
+        </select>
+      </Field>
+      {!canSave && <div className="pt-field-error">Chinese characters are required.</div>}
+      <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => onSave({ ...draft, id: draft.id || uid() })}>Save</button>
+    </Modal>
+  );
+}
+
+function chineseCardSearchHaystack(card) {
+  return [card.hanzi, card.pinyin, card.meaning, card.exampleSentence, card.exampleTranslation].filter(Boolean).join(" ").toLowerCase();
+}
+
+// Every flashcard ever generated or added, permanently browsable — same
+// pattern as French's Lesson History (search/filter/detail/prev-next).
+function ChineseHistory({ ctx }) {
+  const { goals, saveGoals, notify } = ctx;
+  const chinese = goals.chinese;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [selectedId, setSelectedId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+
+  const filtered = useMemo(() => {
+    let list = chinese.flashcards;
+    if (statusFilter !== "ALL") list = list.filter((c) => c.status === statusFilter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((c) => chineseCardSearchHaystack(c).includes(q));
+    }
+    return list;
+  }, [chinese.flashcards, search, statusFilter]);
+
+  const selectedIndex = selectedId ? chinese.flashcards.findIndex((c) => c.id === selectedId) : -1;
+  const selected = selectedIndex >= 0 ? chinese.flashcards[selectedIndex] : null;
+
+  function upsert(card) {
+    const isNew = !chinese.flashcards.some((c) => c.id === card.id);
+    saveGoals((prev) => ({ ...prev, chinese: { ...prev.chinese, flashcards: isNew ? [card, ...prev.chinese.flashcards] : prev.chinese.flashcards.map((c) => (c.id === card.id ? card : c)) } }));
+    notify(isNew ? "Word added" : "Word updated");
+  }
+  function remove(id) {
+    const removed = chinese.flashcards.find((c) => c.id === id);
+    saveGoals((prev) => ({ ...prev, chinese: { ...prev.chinese, flashcards: prev.chinese.flashcards.filter((c) => c.id !== id) } }));
+    notify("Word removed", () => saveGoals((prev) => (prev.chinese.flashcards.some((c) => c.id === id) ? prev : { ...prev, chinese: { ...prev.chinese, flashcards: [removed, ...prev.chinese.flashcards] } })));
+    setSelectedId(null);
+  }
+  function setStatus(card, status) {
+    saveGoals((prev) => ({ ...prev, chinese: { ...prev.chinese, flashcards: prev.chinese.flashcards.map((c) => (c.id === card.id ? { ...c, status, lastReviewedDate: todayISO(), nextReviewDate: addDays(todayISO(), CHINESE_REVIEW_INTERVALS[status] ?? 0) } : c)) } }));
+    notify(`Marked ${CHINESE_STATUS_LABELS[status]}`);
+  }
+
+  if (selected) {
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <button className="pt-btn pt-btn-sm" onClick={() => setSelectedId(null)}><ChevronLeft size={13} /> Back to history</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="pt-btn pt-btn-sm" disabled={selectedIndex <= 0} onClick={() => setSelectedId(chinese.flashcards[selectedIndex - 1].id)}><ChevronLeft size={13} /> Previous</button>
+            <button className="pt-btn pt-btn-sm" disabled={selectedIndex >= chinese.flashcards.length - 1} onClick={() => setSelectedId(chinese.flashcards[selectedIndex + 1].id)}>Next <ChevronRight size={13} /></button>
+          </div>
+        </div>
+        <div className="pt-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 26, fontWeight: 700 }}>{selected.hanzi}</span>
+              <SpeakButton text={selected.hanzi} size={16} />
+            </div>
+            <StatusPill status={selected.status} />
+          </div>
+          <div style={{ fontSize: 14, color: "var(--ink-soft)" }}>{selected.pinyin} — {selected.meaning}</div>
+          {selected.exampleSentence && (
+            <div style={{ fontSize: 13, color: "var(--ink-faint)", marginTop: 10 }}>{selected.exampleSentence}<br />{selected.exampleTranslation}</div>
+          )}
+          <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 10 }}>
+            Added {fmtDate(selected.addedDate)}{selected.lastReviewedDate ? ` · Last reviewed ${fmtDate(selected.lastReviewedDate)}` : ""}{selected.nextReviewDate ? ` · Next review ${fmtDate(selected.nextReviewDate)}` : ""}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+            {["DIFFICULT", "NEED_REVIEW", "LEARNED", "MASTERED"].map((s) => (
+              <button key={s} className={`pt-btn pt-btn-sm ${selected.status === s ? "pt-btn-primary" : ""}`} onClick={() => setStatus(selected, s)}>{CHINESE_STATUS_LABELS[s]}</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+            <button className="pt-btn pt-btn-sm" onClick={() => { setEditItem(selected); setShowForm(true); }}><Edit3 size={13} /> Edit</button>
+            <button className="pt-btn pt-btn-sm pt-btn-danger" onClick={() => remove(selected.id)}><Trash2 size={13} /> Delete</button>
+          </div>
+        </div>
+        {showForm && <ChineseCardForm item={editItem} onClose={() => setShowForm(false)} onSave={(c) => { upsert(c); setShowForm(false); }} />}
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div className="pt-hero" style={{ background: "linear-gradient(135deg, var(--chinese), #7C3F2C)", marginBottom: 20 }}>
-        <div className="pt-hero-label">HSK 3 Exam · {fmtDate(settings.chineseTarget)}</div>
-        <div className="pt-hero-count">{daysLeft >= 0 ? daysLeft : 0}</div>
-        <div className="pt-hero-days">days left · editable in Settings</div>
-      </div>
-      <div className="pt-grid5" style={{ marginBottom: 20 }}>
-        <MiniStat label="Words learned" value={chinese.vocabCount} />
-        <MiniStat label="Study time" value={`${Math.floor(chinese.totalMinutes / 60)}h ${chinese.totalMinutes % 60}m`} />
-        <MiniStat label="HSK3 progress" value={`${progress.pct}%`} />
-        <MiniStat label="Sessions logged" value={chinese.logs.length} />
-        <div />
-      </div>
-      <div className="pt-card" style={{ marginBottom: 20 }}>
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Today I learned:</div>
-        <div className="pt-grid3">
-          <Field label="Words"><input type="number" className="pt-input" value={form.words} onChange={(e) => setForm({ ...form, words: e.target.value })} /></Field>
-          <Field label="Minutes spent"><input type="number" className="pt-input" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} /></Field>
-          <Field label="Notes"><input className="pt-input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+      <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "1 1 220px" }}>
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-faint)" }} />
+          <input className="pt-input" style={{ paddingLeft: 30 }} placeholder="Search characters, pinyin, meaning…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <button className="pt-btn pt-btn-primary" onClick={logToday}><Plus size={14} /> Log today's study</button>
+        <select className="pt-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="ALL">All statuses</option>
+          {Object.keys(CHINESE_STATUS_LABELS).map((s) => <option key={s} value={s}>{CHINESE_STATUS_LABELS[s]}</option>)}
+        </select>
+        <button className="pt-btn pt-btn-primary" onClick={() => { setEditItem(blankChineseFlashcard()); setShowForm(true); }}><Plus size={14} /> Add word</button>
       </div>
-      {chinese.logs.length === 0 ? <EmptyState text="No study sessions logged yet." /> : (
+      {chinese.flashcards.length === 0 ? (
+        <EmptyState text="No words yet — they'll appear here once generated or added." />
+      ) : filtered.length === 0 ? (
+        <EmptyState text="No words match your search or filters." />
+      ) : (
         <div className="pt-table-wrap">
           <table className="pt-table">
-            <thead><tr><th>Date</th><th>Words</th><th>Time</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Characters</th><th>Pinyin</th><th>Meaning</th><th>Added</th><th>Status</th></tr></thead>
             <tbody>
-              {chinese.logs.map((l) => (<tr key={l.id}><td>{fmtDate(l.date)}</td><td>{l.wordsLearned}</td><td>{l.minutesSpent}m</td><td>{l.notes}</td></tr>))}
+              {filtered.map((c) => (
+                <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelectedId(c.id)}>
+                  <td style={{ fontWeight: 700, fontSize: 15 }}>{c.hanzi}</td>
+                  <td>{c.pinyin}</td>
+                  <td>{c.meaning}</td>
+                  <td>{fmtDate(c.addedDate)}</td>
+                  <td><StatusPill status={c.status} /></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
+      {showForm && <ChineseCardForm item={editItem} onClose={() => setShowForm(false)} onSave={(c) => { upsert(c); setShowForm(false); }} />}
+    </div>
+  );
+}
+
+function ChineseProgress({ ctx }) {
+  const { goals, settings } = ctx;
+  const chinese = goals.chinese;
+  const daysLeft = daysBetween(todayISO(), settings.chineseTarget);
+  const progress = computeChineseProgress(chinese, settings);
+  const reviewed = chinese.flashcards.filter((c) => c.lastReviewedDate).length;
+  const mastered = chinese.flashcards.filter((c) => c.status === "MASTERED").length;
+  const streak = effectiveChineseStreak(chinese);
+  const weekAgo = addDays(todayISO(), -7);
+  const weeklyMinutes = chinese.logs.filter((l) => l.date >= weekAgo).reduce((s, l) => s + l.minutesSpent, 0);
+
+  return (
+    <div>
+      <div className="pt-hero" style={{ background: "linear-gradient(135deg, var(--chinese), #7C3F2C)", marginBottom: 20 }}>
+        <div className="pt-hero-label">HSK 3 Target · {fmtDate(settings.chineseTarget)}</div>
+        <div className="pt-hero-count">{daysLeft >= 0 ? daysLeft : 0}</div>
+        <div className="pt-hero-days">days left · editable in Settings</div>
+      </div>
+      <div className="pt-grid5" style={{ marginBottom: 16 }}>
+        <MiniStat label="Words reviewed" value={reviewed} />
+        <MiniStat label="Words mastered" value={mastered} />
+        <MiniStat label="HSK3 progress" value={`${progress.pct}%`} />
+        <MiniStat label="Days studied" value={chinese.daysStudied || 0} />
+        <MiniStat label="Current streak" value={`${streak} days`} />
+      </div>
+      <div className="pt-grid2" style={{ marginBottom: 20 }}>
+        <MiniStat label="Total study time" value={`${Math.floor(chinese.totalMinutes / 60)}h ${chinese.totalMinutes % 60}m`} />
+        <MiniStat label="Study time this week" value={`${Math.floor(weeklyMinutes / 60)}h ${weeklyMinutes % 60}m`} />
+      </div>
+      {chinese.logs.length > 0 && (
+        <Collapsible title="Study session log" subtitle={`${chinese.logs.length} sessions logged`}>
+          <div className="pt-table-wrap" style={{ marginTop: 4 }}>
+            <table className="pt-table">
+              <thead><tr><th>Date</th><th>Words</th><th>Time</th><th>Notes</th></tr></thead>
+              <tbody>
+                {chinese.logs.map((l) => (<tr key={l.id}><td>{fmtDate(l.date)}</td><td>{l.wordsLearned}</td><td>{l.minutesSpent}m</td><td>{l.notes}</td></tr>))}
+              </tbody>
+            </table>
+          </div>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+function ChineseExam({ ctx }) {
+  const { goals, saveGoals } = ctx;
+  const exam = goals.chinese.exam;
+
+  function patch(p) {
+    saveGoals((prev) => ({ ...prev, chinese: { ...prev.chinese, exam: { ...(prev.chinese.exam || blankChineseExam()), ...p, confirmed: true } } }));
+  }
+  function markConfirmed() {
+    saveGoals((prev) => ({ ...prev, chinese: { ...prev.chinese, exam: { ...(prev.chinese.exam || blankChineseExam()), confirmed: true } } }));
+  }
+
+  return (
+    <div>
+      <div className="pt-card">
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>HSK Exam</div>
+        {!exam.confirmed && (
+          <div className="pt-card pt-card-tight" style={{ borderColor: "var(--atrisk)", marginBottom: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} color="var(--atrisk)" />
+            <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+              <strong>Non officiel — à vérifier sur chinesetest.cn.</strong> These dates come from HSK prep sites, not the official source: registration closing around Dec 3, exam session Dec 13, 2026. Confirm on{" "}
+              <a className="pt-link" href="http://www.chinesetest.cn/index.do" target="_blank" rel="noopener noreferrer">chinesetest.cn</a>, then edit the fields below or mark them confirmed.
+              <div style={{ marginTop: 8 }}>
+                <button className="pt-btn pt-btn-sm" onClick={markConfirmed}><Check size={12} /> Mark as confirmed</button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="pt-grid3">
+          <Field label="Registration date"><input type="date" className="pt-input" value={exam.registrationDate} onChange={(e) => patch({ registrationDate: e.target.value })} /></Field>
+          <Field label="Exam date"><input type="date" className="pt-input" value={exam.examDate} onChange={(e) => patch({ examDate: e.target.value })} /></Field>
+          <Field label="Results date"><input type="date" className="pt-input" value={exam.resultsDate} onChange={(e) => patch({ resultsDate: e.target.value })} /></Field>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>
+          Official registration: <a className="pt-link" href="http://www.chinesetest.cn/index.do" target="_blank" rel="noopener noreferrer">chinesetest.cn</a>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3465,6 +3978,7 @@ function SettingsScreen({ ctx }) {
   const [importError, setImportError] = useState("");
   const [pendingImport, setPendingImport] = useState(null);
   const fileInputRef = useRef(null);
+  const dailyChineseWords = settings.dailyChineseWords || 5; // defensive: predates this setting for existing accounts
 
   function exportData() {
     const bundle = { exportedAt: new Date().toISOString(), settings, thesis, goals, calendar, meta, literature };
@@ -3523,6 +4037,30 @@ function SettingsScreen({ ctx }) {
           <Field label="Chinese HSK3 exam date"><input type="date" className="pt-input" value={settings.chineseTarget} onChange={(e) => saveSettings((p) => ({ ...p, chineseTarget: e.target.value }))} /></Field>
         </div>
         <Field label="Urbanism portfolio target"><input type="date" className="pt-input" value={settings.portfolioTarget} onChange={(e) => saveSettings((p) => ({ ...p, portfolioTarget: e.target.value }))} /></Field>
+      </div>
+
+      <div className="pt-card" style={{ marginBottom: 22 }}>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 14 }}>Study targets</div>
+        <Field label="New Chinese words per day">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {[5, 10, 15].map((n) => (
+              <button
+                key={n}
+                className="pt-btn pt-btn-sm"
+                style={{ background: dailyChineseWords === n ? "var(--chinese-soft)" : undefined, color: dailyChineseWords === n ? "var(--chinese)" : undefined, borderColor: dailyChineseWords === n ? "var(--chinese)" : undefined }}
+                onClick={() => saveSettings((p) => ({ ...p, dailyChineseWords: n }))}
+              >{n}</button>
+            ))}
+            <button
+              className="pt-btn pt-btn-sm"
+              style={{ background: ![5, 10, 15].includes(dailyChineseWords) ? "var(--chinese-soft)" : undefined, color: ![5, 10, 15].includes(dailyChineseWords) ? "var(--chinese)" : undefined, borderColor: ![5, 10, 15].includes(dailyChineseWords) ? "var(--chinese)" : undefined }}
+              onClick={() => saveSettings((p) => ({ ...p, dailyChineseWords: [5, 10, 15].includes(dailyChineseWords) ? 20 : dailyChineseWords }))}
+            >Custom</button>
+            {![5, 10, 15].includes(dailyChineseWords) && (
+              <input type="number" min="1" className="pt-input" style={{ width: 80 }} value={dailyChineseWords} onChange={(e) => saveSettings((p) => ({ ...p, dailyChineseWords: Number(e.target.value) }))} />
+            )}
+          </div>
+        </Field>
       </div>
 
       <div className="pt-card" style={{ marginBottom: 22 }}>
