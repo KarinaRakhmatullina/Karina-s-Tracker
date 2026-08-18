@@ -1152,7 +1152,7 @@ function ThesisScreen({ ctx }) {
 }
 
 function ThesisPlanTab({ ctx }) {
-  const { settings, thesis, saveThesis, notify } = ctx;
+  const { settings, thesis, saveThesis, saveCalendar, notify } = ctx;
   const plan = computeThesisPlan(settings);
 
   function addAction(componentId, text) {
@@ -1167,6 +1167,9 @@ function ThesisPlanTab({ ctx }) {
     const removed = comp.actions.find((a) => a.id === actionId);
     saveThesis((prev) => ({ ...prev, components: prev.components.map((c) => (c.id === componentId ? { ...c, actions: c.actions.filter((a) => a.id !== actionId) } : c)) }));
     notify("Action removed", () => saveThesis((prev) => ({ ...prev, components: prev.components.map((c) => (c.id === componentId ? { ...c, actions: c.actions.some((a) => a.id === actionId) ? c.actions : [...c.actions, removed] } : c)) })));
+  }
+  function sendActionToCalendar(component, action) {
+    sendToCalendar(saveCalendar, notify, { title: action.text, category: "Thesis", type: "Task", linkedType: "Thesis action", linkedId: action.id, notes: `From strategic component: ${component.name}` });
   }
 
   return (
@@ -1201,14 +1204,14 @@ function ThesisPlanTab({ ctx }) {
       <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Strategic components & daily actions</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {thesis.components.map((c) => (
-          <ThesisComponentCard key={c.id} component={c} onAdd={(t) => addAction(c.id, t)} onToggle={(aid) => toggleAction(c.id, aid)} onRemove={(aid) => removeAction(c.id, aid)} />
+          <ThesisComponentCard key={c.id} component={c} onAdd={(t) => addAction(c.id, t)} onToggle={(aid) => toggleAction(c.id, aid)} onRemove={(aid) => removeAction(c.id, aid)} onSendToCalendar={(a) => sendActionToCalendar(c, a)} />
         ))}
       </div>
     </div>
   );
 }
 
-function ThesisComponentCard({ component, onAdd, onToggle, onRemove }) {
+function ThesisComponentCard({ component, onAdd, onToggle, onRemove, onSendToCalendar }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const done = component.actions.filter((a) => a.done).length;
@@ -1230,6 +1233,7 @@ function ThesisComponentCard({ component, onAdd, onToggle, onRemove }) {
                 {a.done ? <CheckCircle2 size={16} color="var(--ontrack)" /> : <Circle size={16} color="var(--ink-faint)" />}
               </button>
               <span style={{ flex: 1, fontSize: 13.5, textDecoration: a.done ? "line-through" : "none", color: a.done ? "var(--ink-faint)" : "var(--ink)" }}>{a.text}</span>
+              {onSendToCalendar && <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} title="Add to calendar" onClick={() => onSendToCalendar(a)}><CalendarIcon size={14} color="var(--ink-faint)" /></button>}
               <button className="pt-btn-ghost pt-btn pt-btn-danger pt-tap" onClick={() => onRemove(a.id)}><X size={13} /></button>
             </div>
           ))}
@@ -2656,7 +2660,7 @@ function PortfolioScreen({ ctx }) {
 
 const INTERNSHIP_STATUSES = ["RESEARCHING", "CONTACTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED"];
 function InternshipTab({ ctx }) {
-  const { goals, saveGoals, addXP, notify } = ctx;
+  const { goals, saveGoals, addXP, notify, saveCalendar } = ctx;
   const intern = goals.internship;
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
@@ -2680,6 +2684,12 @@ function InternshipTab({ ctx }) {
     const removed = intern.applications.find((a) => a.id === id);
     saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, applications: prev.internship.applications.filter((a) => a.id !== id) } }));
     notify("Application removed", () => saveGoals((prev) => (prev.internship.applications.some((a) => a.id === id) ? prev : { ...prev, internship: { ...prev.internship, applications: [removed, ...prev.internship.applications] } })));
+  }
+  function sendAppToCalendar(a) {
+    sendToCalendar(saveCalendar, notify, {
+      title: `Follow up: ${a.company}${a.position ? ` (${a.position})` : ""}`, category: "Internship", type: "Appointment",
+      linkedType: "Internship application", linkedId: a.id, notes: a.notes || "",
+    });
   }
   const canSaveApp = !!(item && item.company.trim());
   const canActivate = actForm.company.trim().length > 0;
@@ -2718,7 +2728,8 @@ function InternshipTab({ ctx }) {
                       {INTERNSHIP_STATUSES.map((s) => <option key={s}>{s}</option>)}
                     </select>
                   </td>
-                  <td><button className="pt-btn pt-btn-ghost" onClick={() => { setItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
+                  <td><button className="pt-btn pt-btn-ghost" title="Add to calendar" onClick={() => sendAppToCalendar(a)}><CalendarIcon size={14} /></button>
+                  <button className="pt-btn pt-btn-ghost" onClick={() => { setItem(a); setShowForm(true); }}><Edit3 size={14} /></button>
                   <button className="pt-btn pt-btn-ghost pt-btn-danger" onClick={() => remove(a.id)}><Trash2 size={14} /></button></td>
                 </tr>
               ))}
@@ -2833,10 +2844,17 @@ function FrenchTab({ ctx }) {
 }
 
 function FrenchToday({ ctx }) {
-  const { goals, saveGoals, addXP, notify } = ctx;
+  const { goals, saveGoals, addXP, notify, saveCalendar } = ctx;
   const french = goals.french;
   const lesson = french.lessons.find((l) => l.status !== "COMPLETED") || french.lessons[french.lessons.length - 1];
   const [minutes, setMinutes] = useState(lesson?.minutesSpent || 0);
+
+  function sendLessonToCalendar() {
+    sendToCalendar(saveCalendar, notify, {
+      title: `French: ${lesson.title}`, category: "French", type: "Task",
+      linkedType: "French lesson", linkedId: lesson.id, notes: `Day ${lesson.dayNumber} · ${lesson.moduleTitle}`,
+    });
+  }
 
   function markComplete() {
     const prevFrench = french;
@@ -2883,6 +2901,7 @@ function FrenchToday({ ctx }) {
           <Field label="Minutes completed today"><input type="number" className="pt-input" value={minutes} onChange={(e) => setMinutes(e.target.value)} /></Field>
           <button className="pt-btn pt-btn-primary" onClick={markComplete}><Check size={14} /> Mark lesson complete</button>
         </div>
+        <button className="pt-btn pt-btn-ghost pt-tap" style={{ marginTop: 10 }} onClick={sendLessonToCalendar}><CalendarIcon size={14} /> Add to calendar</button>
       </div>
     </div>
   );
@@ -3368,7 +3387,7 @@ function ChineseTab({ ctx }) {
 }
 
 function ChineseToday({ ctx }) {
-  const { goals, saveGoals, settings, addXP, notify } = ctx;
+  const { goals, saveGoals, settings, addXP, notify, saveCalendar } = ctx;
   const chinese = goals.chinese;
   const dailyCount = settings.dailyChineseWords || 5;
   const [revealedId, setRevealedId] = useState(null);
@@ -3386,6 +3405,13 @@ function ChineseToday({ ctx }) {
   }, [chinese.flashcards.length, dailyCount]);
 
   const due = useMemo(() => dueChineseCards(chinese), [chinese.flashcards]);
+
+  function sendSessionToCalendar() {
+    sendToCalendar(saveCalendar, notify, {
+      title: "Chinese review session", category: "Chinese", type: "Task",
+      linkedType: "Chinese session", linkedId: todayISO(), notes: `${due.length} card${due.length === 1 ? "" : "s"} due today`,
+    });
+  }
 
   function reviewCard(card, status) {
     const prevChinese = chinese;
@@ -3414,8 +3440,13 @@ function ChineseToday({ ctx }) {
   return (
     <div>
       <div className="pt-card" style={{ marginBottom: 20 }}>
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Due for review</div>
-        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 14 }}>{dailyCount} new words/day, configurable in Settings.</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Due for review</div>
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 14 }}>{dailyCount} new words/day, configurable in Settings.</div>
+          </div>
+          {due.length > 0 && <button className="pt-btn pt-btn-ghost pt-btn-sm pt-tap" onClick={sendSessionToCalendar}><CalendarIcon size={13} /> Add to calendar</button>}
+        </div>
         {due.length === 0 ? <EmptyState text="Nothing due right now — check back tomorrow, or add your own words." /> : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {due.map((card) => (
@@ -3791,6 +3822,45 @@ function UrbanismTab({ ctx }) {
    CALENDAR SCREEN
    ========================================================================= */
 const TASK_CATEGORIES = ["Thesis", "Internship", "French", "Chinese", "Portfolio", "Personal", "Other"];
+const CALENDAR_ENTRY_TYPES = ["Task", "Appointment", "Deadline", "Reminder"];
+
+// Simple, bounded recurrence — not an RRULE engine. Generates concrete,
+// independently editable/completable instances up front rather than
+// computing virtual occurrences at render time, matching how French
+// lessons and Chinese flashcards are already pre-generated in this app.
+const RECURRENCE_HORIZON = { daily: 30, weekly: 12, monthly: 6 };
+function generateRecurringTasks(base) {
+  if (!base.recurrence || base.recurrence === "none") return [base];
+  const count = RECURRENCE_HORIZON[base.recurrence] || 1;
+  const groupId = uid();
+  const instances = [];
+  for (let i = 0; i < count; i++) {
+    let date = base.date;
+    if (base.recurrence === "daily") date = addDays(base.date, i);
+    else if (base.recurrence === "weekly") date = addDays(base.date, i * 7);
+    else if (base.recurrence === "monthly") {
+      const d = parseISO(base.date);
+      date = toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + i, d.getUTCDate())));
+    }
+    instances.push({ ...base, id: i === 0 ? base.id : uid(), date, recurrenceGroupId: groupId, recurrenceIndex: i });
+  }
+  return instances;
+}
+
+// Shared "send to calendar" used from Thesis/French/Chinese/Internship —
+// links back to the source record instead of duplicating its data; the
+// calendar entry is a pointer, the source stays the single source of truth.
+function sendToCalendar(saveCalendar, notify, entry) {
+  const task = {
+    id: uid(), title: entry.title, date: entry.date || todayISO(), time: entry.time || "", duration: entry.duration || 30,
+    type: entry.type || "Task", category: entry.category || "Personal", priority: entry.priority || "Medium",
+    notes: entry.notes || "", completed: false, recurrence: "none",
+    linkedType: entry.linkedType || null, linkedId: entry.linkedId || null,
+  };
+  saveCalendar((prev) => ({ ...prev, tasks: [task, ...prev.tasks] }));
+  notify("Added to calendar");
+}
+
 function CalendarScreen({ ctx }) {
   const { calendar, saveCalendar, addXP, notify } = ctx;
   const [view, setView] = useState("agenda");
@@ -3798,9 +3868,15 @@ function CalendarScreen({ ctx }) {
   const [item, setItem] = useState(null);
   const [monthCursor, setMonthCursor] = useState(() => { const d = parseISO(todayISO()); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); });
 
-  function blank() { return { id: null, title: "", date: todayISO(), time: "", duration: 30, category: "Personal", priority: "Medium", notes: "", completed: false, recurrence: "none" }; }
+  function blank() { return { id: null, title: "", date: todayISO(), time: "", duration: 30, type: "Task", category: "Personal", priority: "Medium", notes: "", completed: false, recurrence: "none" }; }
   function upsert(v, silent) {
     const isNew = !calendar.tasks.some((t) => t.id === v.id);
+    if (isNew && v.recurrence && v.recurrence !== "none") {
+      const instances = generateRecurringTasks(v);
+      saveCalendar((prev) => ({ ...prev, tasks: [...instances, ...prev.tasks] }));
+      if (!silent) notify(`${instances.length} tasks added (repeats ${v.recurrence})`);
+      return;
+    }
     saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.some((t) => t.id === v.id) ? prev.tasks.map((t) => (t.id === v.id ? v : t)) : [v, ...prev.tasks] }));
     if (!silent) notify(isNew ? "Task added" : "Task updated");
   }
@@ -3809,9 +3885,16 @@ function CalendarScreen({ ctx }) {
     saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== id) }));
     notify("Task removed", () => saveCalendar((prev) => (prev.tasks.some((t) => t.id === id) ? prev : { ...prev, tasks: [removed, ...prev.tasks] })));
   }
+  function removeSeries(groupId) {
+    const removedBatch = calendar.tasks.filter((t) => t.recurrenceGroupId === groupId);
+    saveCalendar((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.recurrenceGroupId !== groupId) }));
+    notify(`${removedBatch.length} tasks removed`, () => saveCalendar((prev) => ({ ...prev, tasks: [...removedBatch, ...prev.tasks] })));
+  }
   function toggleComplete(t) {
-    upsert({ ...t, completed: !t.completed }, true);
-    if (!t.completed) addXP(10, "Task completed");
+    const willComplete = !t.completed;
+    upsert({ ...t, completed: willComplete }, true);
+    if (willComplete) addXP(10, "Task completed", () => upsert({ ...t, completed: false }, true));
+    else notify("Task marked incomplete", () => upsert({ ...t, completed: true }, true));
   }
   const canSaveTask = !!(item && item.title.trim());
 
@@ -3841,9 +3924,11 @@ function CalendarScreen({ ctx }) {
                 <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => toggleComplete(t)}>
                   {t.completed ? <CheckCircle2 size={17} color="var(--ontrack)" /> : <Circle size={17} color="var(--ink-faint)" />}
                 </button>
-                <div style={{ flex: 1, cursor: "pointer" }} onClick={() => { setItem(t); setShowForm(true); }}>
+                <div style={{ flex: 1, cursor: "pointer", minWidth: 0 }} onClick={() => { setItem(t); setShowForm(true); }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: t.completed ? "line-through" : "none", color: t.completed ? "var(--ink-faint)" : "var(--ink)" }}>{t.title}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>{fmtDate(t.date)} {t.time && `· ${t.time}`} · {t.category}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>
+                    {fmtDate(t.date)} {t.time && `· ${t.time}`} · {t.category}{t.type && t.type !== "Task" ? ` · ${t.type}` : ""}{t.linkedType ? ` · linked` : ""}
+                  </div>
                 </div>
                 <span className="pt-chip">{t.priority}</span>
                 <button className="pt-btn pt-btn-ghost pt-btn-danger pt-tap" onClick={() => remove(t.id)}><Trash2 size={14} /></button>
@@ -3857,11 +3942,22 @@ function CalendarScreen({ ctx }) {
         <Modal title="Task" onClose={() => setShowForm(false)}>
           <Field label="Title"><input className="pt-input" value={item.title} onChange={(e) => setItem({ ...item, title: e.target.value })} /></Field>
           <div className="pt-grid3">
-            <Field label="Date"><input type="date" className="pt-input" value={item.date} onChange={(e) => setItem({ ...item, date: e.target.value })} /></Field>
+            <Field label="Date">
+              <input type="date" className="pt-input" value={item.date} onChange={(e) => setItem({ ...item, date: e.target.value })} />
+              <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                <button type="button" className="pt-btn pt-btn-sm" onClick={() => setItem({ ...item, date: addDays(item.date, 1) })}>+1 day</button>
+                <button type="button" className="pt-btn pt-btn-sm" onClick={() => setItem({ ...item, date: addDays(item.date, 7) })}>+1 week</button>
+              </div>
+            </Field>
             <Field label="Time"><input type="time" className="pt-input" value={item.time} onChange={(e) => setItem({ ...item, time: e.target.value })} /></Field>
             <Field label="Duration (min)"><input type="number" className="pt-input" value={item.duration} onChange={(e) => setItem({ ...item, duration: e.target.value })} /></Field>
           </div>
-          <div className="pt-grid2">
+          <div className="pt-grid3">
+            <Field label="Type">
+              <select className="pt-select" value={item.type || "Task"} onChange={(e) => setItem({ ...item, type: e.target.value })}>
+                {CALENDAR_ENTRY_TYPES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
             <Field label="Category">
               <select className="pt-select" value={item.category} onChange={(e) => setItem({ ...item, category: e.target.value })}>
                 {TASK_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
@@ -3873,16 +3969,28 @@ function CalendarScreen({ ctx }) {
               </select>
             </Field>
           </div>
-          <Field label="Recurrence">
-            <select className="pt-select" value={item.recurrence} onChange={(e) => setItem({ ...item, recurrence: e.target.value })}>
-              {["none", "daily", "weekly", "monthly"].map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </Field>
+          {item.linkedType && (
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 12, display: "flex", gap: 6, alignItems: "flex-start" }}>
+              <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} /> Linked from {item.linkedType} — editing here only changes the calendar entry.
+            </div>
+          )}
+          {item.id ? (
+            <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 12 }}>
+              {item.recurrenceGroupId ? "Part of a repeating series." : "Recurrence can only be set when first creating a task."}
+            </div>
+          ) : (
+            <Field label="Repeat">
+              <select className="pt-select" value={item.recurrence} onChange={(e) => setItem({ ...item, recurrence: e.target.value })}>
+                {["none", "daily", "weekly", "monthly"].map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Notes"><textarea className="pt-textarea" value={item.notes} onChange={(e) => setItem({ ...item, notes: e.target.value })} /></Field>
           {!canSaveTask && <div className="pt-field-error">Title is required.</div>}
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="pt-btn pt-btn-primary" disabled={!canSaveTask} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save task</button>
             {item.id && <button className="pt-btn pt-btn-danger" onClick={() => { remove(item.id); setShowForm(false); }}>Delete</button>}
+            {item.recurrenceGroupId && <button className="pt-btn pt-btn-danger" onClick={() => { removeSeries(item.recurrenceGroupId); setShowForm(false); }}>Delete entire series</button>}
           </div>
         </Modal>
       )}
@@ -3940,7 +4048,12 @@ function WeekView({ tasks, onToggle, onSelect }) {
           <div key={iso} className="pt-card pt-card-tight">
             <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, color: iso === today ? "var(--thesis)" : "var(--ink-faint)" }}>{parseISO(iso).toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" })}</div>
             {dayTasks.map((t) => (
-              <div key={t.id} onClick={() => onSelect(t)} style={{ fontSize: 11.5, padding: "4px 0", cursor: "pointer", textDecoration: t.completed ? "line-through" : "none", color: t.completed ? "var(--ink-faint)" : "var(--ink)" }}>{t.title}</div>
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 0" }}>
+                <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none", padding: 2, minWidth: 24, minHeight: 24 }} onClick={() => onToggle(t)}>
+                  {t.completed ? <CheckCircle2 size={12} color="var(--ontrack)" /> : <Circle size={12} color="var(--ink-faint)" />}
+                </button>
+                <span onClick={() => onSelect(t)} style={{ fontSize: 11.5, cursor: "pointer", textDecoration: t.completed ? "line-through" : "none", color: t.completed ? "var(--ink-faint)" : "var(--ink)" }}>{t.title}</span>
+              </div>
             ))}
             {dayTasks.length === 0 && <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>—</div>}
           </div>
@@ -3967,9 +4080,6 @@ function DayView({ tasks, onToggle, onSelect }) {
   );
 }
 
-/* =========================================================================
-   PROGRESS SCREEN (Weekly Review + XP)
-   ========================================================================= */
 /* =========================================================================
    SETTINGS SCREEN
    ========================================================================= */
