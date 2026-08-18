@@ -596,10 +596,47 @@ function portfolioGoalsNeedsUpgrade(raw) {
   return !(raw && raw.portfolio && Array.isArray(raw.portfolio.projects));
 }
 
+const LEARNING_RESOURCE_TYPES = ["Article", "Case Study", "Video", "Book"];
+function blankLearningResource() {
+  return { id: null, title: "", link: "", type: "Article", relevance: "", status: "TO_READ" };
+}
+
+// Safe-upgrade: goals.internship used to be just {applications, active} —
+// adds the Daily Professional Learning list, and (for accounts that already
+// activated an internship) renames the old free-text "attendance" log to
+// "hours" and fills in the two new log kinds (learned, weeklyReflections)
+// without touching anything already written.
+function ensureInternshipShape(internship) {
+  const i = internship || { applications: [], active: null };
+  const applications = Array.isArray(i.applications) ? i.applications : [];
+  const learning = Array.isArray(i.learning) ? i.learning : [];
+  let active = i.active || null;
+  if (active) {
+    const { attendance, ...restActive } = active;
+    active = {
+      ...restActive,
+      hours: Array.isArray(active.hours) ? active.hours : (Array.isArray(attendance) ? attendance : []),
+      projects: Array.isArray(active.projects) ? active.projects : [],
+      learned: Array.isArray(active.learned) ? active.learned : [],
+      skills: Array.isArray(active.skills) ? active.skills : [],
+      deliverables: Array.isArray(active.deliverables) ? active.deliverables : [],
+      notes: Array.isArray(active.notes) ? active.notes : [],
+      weeklyReflections: Array.isArray(active.weeklyReflections) ? active.weeklyReflections : [],
+    };
+  }
+  return { applications, active, learning };
+}
+function internshipGoalsNeedsUpgrade(raw) {
+  const i = raw && raw.internship;
+  if (!i || !Array.isArray(i.learning)) return true;
+  if (i.active && !(Array.isArray(i.active.hours) && Array.isArray(i.active.learned) && Array.isArray(i.active.weeklyReflections))) return true;
+  return false;
+}
+
 function normalizeGoals(raw) {
   if (!raw) return initGoals();
   const { urbanism, ...rest } = raw;
-  return { ...rest, chinese: ensureChineseShape(raw.chinese), portfolio: ensurePortfolioShape(raw) };
+  return { ...rest, chinese: ensureChineseShape(raw.chinese), portfolio: ensurePortfolioShape(raw), internship: ensureInternshipShape(raw.internship) };
 }
 function chineseGoalsNeedsUpgrade(raw) {
   return !(
@@ -610,7 +647,7 @@ function chineseGoalsNeedsUpgrade(raw) {
 
 function initGoals() {
   return {
-    internship: { applications: [], active: null },
+    internship: { applications: [], active: null, learning: [] },
     french: {
       modules: FRENCH_MODULES,
       lessons: generateFrenchLessons("2026-08-15", "2026-10-31"),
@@ -804,7 +841,7 @@ export default function Tracker({ onSignOut }) {
       thesisRaw.sections.framework && thesisRaw.sections.framework.conceptsSeeded === true
     );
     if (needsThesisUpgrade) saveThesis(migrateThesis(thesisRaw));
-    if (chineseGoalsNeedsUpgrade(goalsRaw) || portfolioGoalsNeedsUpgrade(goalsRaw)) saveGoals(normalizeGoals(goalsRaw));
+    if (chineseGoalsNeedsUpgrade(goalsRaw) || portfolioGoalsNeedsUpgrade(goalsRaw) || internshipGoalsNeedsUpgrade(goalsRaw)) saveGoals(normalizeGoals(goalsRaw));
     const oldArticles = Array.isArray(thesisRaw && thesisRaw.literature) ? thesisRaw.literature : [];
     if (oldArticles.length > 0 && literature.articles.length === 0) {
       saveLiterature({ articles: oldArticles.map(migrateLiteratureArticle) });
@@ -2700,6 +2737,81 @@ function PortfolioScreen({ ctx }) {
   );
 }
 
+// Manual-only, matching the Literature "Coming Later" AI pattern — no
+// suggestions are generated, just a place to log what's already been read.
+function InternshipLearning({ ctx }) {
+  const { goals, saveGoals, notify } = ctx;
+  const learning = goals.internship.learning;
+  const [showForm, setShowForm] = useState(false);
+  const [item, setItem] = useState(null);
+
+  function upsert(v) {
+    const isNew = !learning.some((r) => r.id === v.id);
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, learning: isNew ? [v, ...prev.internship.learning] : prev.internship.learning.map((r) => (r.id === v.id ? v : r)) } }));
+    notify(isNew ? "Resource added" : "Resource updated");
+  }
+  function remove(id) {
+    const removed = learning.find((r) => r.id === id);
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, learning: prev.internship.learning.filter((r) => r.id !== id) } }));
+    notify("Resource removed", () => saveGoals((prev) => (prev.internship.learning.some((r) => r.id === id) ? prev : { ...prev, internship: { ...prev.internship, learning: [removed, ...prev.internship.learning] } })));
+  }
+  function toggleStatus(r) {
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, learning: prev.internship.learning.map((x) => (x.id === r.id ? { ...x, status: x.status === "READ" ? "TO_READ" : "READ" } : x)) } }));
+  }
+  const canSave = !!(item && item.title.trim());
+
+  return (
+    <div className="pt-card" style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Daily Professional Learning</div>
+          <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Direction: Design Strategy + Spatial Strategy / Space Organization</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="pt-btn pt-btn-sm" disabled title="Coming later"><Lock size={11} /> Suggest with AI · Coming Later</button>
+          <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={() => { setItem(blankLearningResource()); setShowForm(true); }}><Plus size={14} /> Add resource</button>
+        </div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        {learning.length === 0 ? <EmptyState text="No resources added yet." /> : learning.map((r) => (
+          <div key={r.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line-soft)" }}>
+            <button className="pt-btn-ghost pt-btn pt-tap" style={{ border: "none" }} onClick={() => toggleStatus(r)} title={r.status === "READ" ? "Mark as to-read" : "Mark as read"}>
+              {r.status === "READ" ? <CheckCircle2 size={16} color="var(--ontrack)" /> : <Circle size={16} color="var(--ink-faint)" />}
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {r.link ? (
+                  <a href={r.link} target="_blank" rel="noreferrer" style={{ fontSize: 13.5, fontWeight: 600, color: r.status === "READ" ? "var(--ink-faint)" : "var(--ink)", textDecoration: r.status === "READ" ? "line-through" : "none" }}>{r.title}</a>
+                ) : (
+                  <span style={{ fontSize: 13.5, fontWeight: 600, color: r.status === "READ" ? "var(--ink-faint)" : "var(--ink)", textDecoration: r.status === "READ" ? "line-through" : "none" }}>{r.title}</span>
+                )}
+                <span className="pt-chip">{r.type}</span>
+              </div>
+              {r.relevance && <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>{r.relevance}</div>}
+            </div>
+            <button className="pt-btn-ghost pt-btn" onClick={() => { setItem(r); setShowForm(true); }}><Edit3 size={13} /></button>
+            <button className="pt-btn-ghost pt-btn pt-btn-danger" onClick={() => remove(r.id)}><Trash2 size={13} /></button>
+          </div>
+        ))}
+      </div>
+      {showForm && (
+        <Modal title="Learning resource" onClose={() => setShowForm(false)}>
+          <Field label="Title"><input className="pt-input" value={item.title} onChange={(e) => setItem({ ...item, title: e.target.value })} /></Field>
+          <Field label="Link (optional)"><input className="pt-input" value={item.link} onChange={(e) => setItem({ ...item, link: e.target.value })} /></Field>
+          <Field label="Type">
+            <select className="pt-select" value={item.type} onChange={(e) => setItem({ ...item, type: e.target.value })}>
+              {LEARNING_RESOURCE_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="Why this is relevant to my development"><textarea className="pt-textarea" value={item.relevance} onChange={(e) => setItem({ ...item, relevance: e.target.value })} /></Field>
+          {!canSave && <div className="pt-field-error">Title is required.</div>}
+          <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 const INTERNSHIP_STATUSES = ["RESEARCHING", "CONTACTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED"];
 function InternshipTab({ ctx }) {
   const { goals, saveGoals, addXP, notify, saveCalendar } = ctx;
@@ -2737,7 +2849,7 @@ function InternshipTab({ ctx }) {
   const canActivate = actForm.company.trim().length > 0;
 
   function activate() {
-    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...actForm, attendance: [], projects: [], skills: [], deliverables: [], notes: [] } } }));
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...actForm, hours: [], projects: [], learned: [], skills: [], deliverables: [], notes: [], weeklyReflections: [] } } }));
     setConfirmActivate(false);
     setShowActivate(false);
     addXP(75, "Internship activated!");
@@ -2779,6 +2891,7 @@ function InternshipTab({ ctx }) {
           </table>
         </div>
       )}
+      <InternshipLearning ctx={ctx} />
       {showForm && (
         <Modal title="Internship application" onClose={() => setShowForm(false)}>
           <div className="pt-grid2">
@@ -2814,7 +2927,7 @@ function InternshipTab({ ctx }) {
       {confirmActivate && (
         <ConfirmDialog
           title="Switch to active internship tracking?"
-          message="This replaces the applications tracker above with day-to-day internship logging (attendance, projects, skills, deliverables). This can't be switched back from here."
+          message="This replaces the applications tracker above with day-to-day internship logging (hours, projects, what you learned, skills, deliverables, notes) and a weekly reflection. This can't be switched back from here."
           confirmLabel="Switch"
           onConfirm={activate}
           onCancel={() => setConfirmActivate(false)}
@@ -2824,17 +2937,33 @@ function InternshipTab({ ctx }) {
   );
 }
 
+// Simple Internship Experience Tracker, on purpose: a quick log split into
+// a handful of named buckets, plus one short weekly reflection. No hours
+// arithmetic, no attendance calendar, no separate CRUD screens per bucket.
 function ActiveInternship({ internship, ctx }) {
   const { saveGoals, notify } = ctx;
   const [entry, setEntry] = useState("");
   const [kind, setKind] = useState("notes");
-  const kinds = { attendance: "Attendance", projects: "Projects", skills: "Skills learned", deliverables: "Deliverables", notes: "Notes / Achievements" };
+  const kinds = { hours: "Hours / Days", projects: "Projects", learned: "What I learned", skills: "Skills learned", deliverables: "Deliverables", notes: "Notes" };
+  const [reflection, setReflection] = useState("");
 
   function addEntry() {
     if (!entry.trim()) return;
     saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...prev.internship.active, [kind]: [...prev.internship.active[kind], { id: uid(), text: entry, date: todayISO() }] } } }));
     setEntry("");
     notify(`${kinds[kind]} entry added`);
+  }
+
+  function saveReflection() {
+    if (!reflection.trim()) return;
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...prev.internship.active, weeklyReflections: [{ id: uid(), date: todayISO(), text: reflection }, ...prev.internship.active.weeklyReflections] } } }));
+    setReflection("");
+    notify("Reflection saved");
+  }
+  function removeReflection(id) {
+    const removed = internship.weeklyReflections.find((r) => r.id === id);
+    saveGoals((prev) => ({ ...prev, internship: { ...prev.internship, active: { ...prev.internship.active, weeklyReflections: prev.internship.active.weeklyReflections.filter((r) => r.id !== id) } } }));
+    notify("Reflection removed", () => saveGoals((prev) => (prev.internship.active.weeklyReflections.some((r) => r.id === id) ? prev : { ...prev, internship: { ...prev.internship, active: { ...prev.internship.active, weeklyReflections: [removed, ...prev.internship.active.weeklyReflections] } } })));
   }
 
   return (
@@ -2861,6 +2990,25 @@ function ActiveInternship({ internship, ctx }) {
             ))}
           </div>
         ))}
+      </div>
+      <div className="pt-card" style={{ marginTop: 20 }}>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 4 }}>Weekly reflection</div>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 12 }}>What did I learn this week?</div>
+        <textarea className="pt-textarea" value={reflection} onChange={(e) => setReflection(e.target.value)} />
+        <button className="pt-btn pt-btn-primary" style={{ marginTop: 10 }} disabled={!reflection.trim()} onClick={saveReflection}>Save reflection</button>
+        {internship.weeklyReflections.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            {internship.weeklyReflections.map((r) => (
+              <div key={r.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--line-soft)" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 3 }}>{fmtDate(r.date)}</div>
+                  <div style={{ fontSize: 13 }}>{r.text}</div>
+                </div>
+                <button className="pt-btn-ghost pt-btn pt-btn-danger" onClick={() => removeReflection(r.id)}><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
