@@ -551,9 +551,55 @@ function ensureChineseShape(chinese) {
     exam: c.exam || blankChineseExam(),
   };
 }
+// Portfolio was previously a single 9-stage "urbanism case study" object,
+// inconsistently split across goals.portfolio (the initGoals default) and
+// goals.urbanism (what the tab actually wrote to once touched — a
+// pre-existing bug). This consolidates both into one goals.portfolio.projects[]
+// array under the new 5-stage shape, carrying forward anything already
+// written instead of discarding it.
+const PORTFOLIO_STAGES = ["Project idea", "Research", "Development", "Finalization", "Portfolio integration"];
+function blankPortfolioProject() {
+  return {
+    id: uid(), title: "", stage: PORTFOLIO_STAGES[0],
+    competition: { name: "", deadline: "" },
+    research: { literatureId: null, notes: "" },
+    thesisSectionKey: "",
+    cvNote: "",
+  };
+}
+const OLD_PORTFOLIO_STAGE_MAP = {
+  RESEARCH: "Research", SITE: "Research", PROBLEM: "Research", USERS: "Research",
+  CONCEPT: "Development", "URBAN STRATEGY": "Development", DEVELOPMENT: "Development",
+  VISUALIZATION: "Finalization", "FINAL CASE STUDY": "Portfolio integration",
+};
+function ensurePortfolioShape(raw) {
+  const current = raw && raw.portfolio;
+  if (current && Array.isArray(current.projects)) return current;
+  const old = (raw && raw.urbanism) || current || null;
+  if (!old || !old.stages) return { projects: [blankPortfolioProject()] };
+  const carried = ["site", "problem", "users", "concept", "strategy", "notes"]
+    .map((k) => (old.project && old.project[k] ? `${k.charAt(0).toUpperCase()}${k.slice(1)}: ${old.project[k]}` : null))
+    .filter(Boolean).join("\n\n");
+  return {
+    projects: [{
+      id: uid(),
+      title: (old.project && old.project.title) || "",
+      stage: OLD_PORTFOLIO_STAGE_MAP[old.stage] || PORTFOLIO_STAGES[0],
+      competition: { name: old.competitionLinked || "", deadline: "" },
+      research: { literatureId: null, notes: carried },
+      thesisSectionKey: "",
+      cvNote: "",
+    }],
+  };
+}
+function portfolioGoalsNeedsUpgrade(raw) {
+  return !(raw && raw.portfolio && Array.isArray(raw.portfolio.projects));
+}
+
 function normalizeGoals(raw) {
   if (!raw) return initGoals();
-  return { ...raw, chinese: ensureChineseShape(raw.chinese) };
+  const { urbanism, ...rest } = raw;
+  return { ...rest, chinese: ensureChineseShape(raw.chinese), portfolio: ensurePortfolioShape(raw) };
 }
 function chineseGoalsNeedsUpgrade(raw) {
   return !(
@@ -577,12 +623,7 @@ function initGoals() {
       flashcards: [], streak: 0, daysStudied: 0, lastStudyDate: null,
       exam: blankChineseExam(),
     },
-    portfolio: {
-      stage: "RESEARCH",
-      stages: ["RESEARCH", "SITE", "PROBLEM", "USERS", "CONCEPT", "URBAN STRATEGY", "DEVELOPMENT", "VISUALIZATION", "FINAL CASE STUDY"],
-      project: { title: "", site: "", problem: "", users: "", concept: "", strategy: "", notes: "" },
-      competitionLinked: null,
-    },
+    portfolio: { projects: [blankPortfolioProject()] },
   };
 }
 
@@ -763,7 +804,7 @@ export default function Tracker({ onSignOut }) {
       thesisRaw.sections.framework && thesisRaw.sections.framework.conceptsSeeded === true
     );
     if (needsThesisUpgrade) saveThesis(migrateThesis(thesisRaw));
-    if (chineseGoalsNeedsUpgrade(goalsRaw)) saveGoals(normalizeGoals(goalsRaw));
+    if (chineseGoalsNeedsUpgrade(goalsRaw) || portfolioGoalsNeedsUpgrade(goalsRaw)) saveGoals(normalizeGoals(goalsRaw));
     const oldArticles = Array.isArray(thesisRaw && thesisRaw.literature) ? thesisRaw.literature : [];
     if (oldArticles.length > 0 && literature.articles.length === 0) {
       saveLiterature({ articles: oldArticles.map(migrateLiteratureArticle) });
@@ -911,10 +952,11 @@ function computeInternshipProgress(internship) {
   };
 }
 function computePortfolioProgress(portfolio) {
-  const idx = portfolio.stages.indexOf(portfolio.stage);
-  const pct = Math.round(((idx + 1) / portfolio.stages.length) * 100);
-  const status = portfolio.stage === "FINAL CASE STUDY" ? "COMPLETED" : "ON TRACK";
-  return { pct, current: portfolio.stage, next: idx < portfolio.stages.length - 1 ? `Move to: ${portfolio.stages[idx + 1]}` : "Finalize case study", status };
+  const project = portfolio.projects[0];
+  const idx = PORTFOLIO_STAGES.indexOf(project.stage);
+  const pct = Math.round(((idx + 1) / PORTFOLIO_STAGES.length) * 100);
+  const isLast = idx === PORTFOLIO_STAGES.length - 1;
+  return { pct, current: project.stage, next: isLast ? "Done" : `Move to: ${PORTFOLIO_STAGES[idx + 1]}`, status: isLast ? "COMPLETED" : "ON TRACK" };
 }
 
 const GOAL_META = {
@@ -922,7 +964,7 @@ const GOAL_META = {
   internship: { label: "Internship", icon: Briefcase, color: "var(--internship)", soft: "var(--internship-soft)", nav: "internship" },
   french: { label: "French A2", icon: Languages, color: "var(--french)", soft: "var(--french-soft)", nav: "french" },
   chinese: { label: "Chinese HSK3", icon: BookOpen, color: "var(--chinese)", soft: "var(--chinese-soft)", nav: "chinese" },
-  urbanism: { label: "Portfolio", icon: Building2, color: "var(--urbanism)", soft: "var(--urbanism-soft)", nav: "portfolio" },
+  portfolio: { label: "Portfolio", icon: Building2, color: "var(--urbanism)", soft: "var(--urbanism-soft)", nav: "portfolio" },
 };
 
 /* =========================================================================
@@ -939,14 +981,14 @@ function HomeScreen({ ctx }) {
   const frenchP = computeFrenchProgress(goals.french);
   const chineseP = computeChineseProgress(goals.chinese, settings);
   const internshipP = computeInternshipProgress(goals.internship);
-  const portfolioP = computePortfolioProgress(goals.urbanism ? goals.urbanism : goals.portfolio);
+  const portfolioP = computePortfolioProgress(goals.portfolio);
 
   const cards = [
     { key: "thesis", ...thesisP },
     { key: "french", ...frenchP },
     { key: "chinese", ...chineseP },
     { key: "internship", ...internshipP },
-    { key: "urbanism", ...portfolioP },
+    { key: "portfolio", ...portfolioP },
   ];
 
   const todaysTasks = useMemo(
@@ -2653,7 +2695,7 @@ function PortfolioScreen({ ctx }) {
     <div>
       <div className="pt-eyebrow">Practice</div>
       <h1 className="pt-h1">Portfolio</h1>
-      <UrbanismTab ctx={ctx} />
+      <PortfolioTab ctx={ctx} />
     </div>
   );
 }
@@ -3770,23 +3812,33 @@ function ChineseExam({ ctx }) {
   );
 }
 
-function UrbanismTab({ ctx }) {
-  const { goals, saveGoals, settings, addXP } = ctx;
-  const p = goals.urbanism || goals.portfolio;
-  function patch(v) { saveGoals((prev) => ({ ...prev, urbanism: { ...(prev.urbanism || prev.portfolio), ...v } })); }
-  const idx = p.stages.indexOf(p.stage);
+// Deliberately light: 5 stages, one percentage, a handful of connection
+// fields. No daily tasks, no long checklist, no XP/gamification here —
+// this screen exists so a single case study doesn't get lost among the
+// daily-productivity tracks, not to become another one of them.
+function PortfolioTab({ ctx }) {
+  const { goals, saveGoals, settings, literature } = ctx;
+  const project = goals.portfolio.projects[0];
+  const idx = PORTFOLIO_STAGES.indexOf(project.stage);
+  const pct = Math.round(((idx + 1) / PORTFOLIO_STAGES.length) * 100);
   const daysLeft = daysBetween(todayISO(), settings.portfolioTarget);
 
-  function advance() {
-    if (idx < p.stages.length - 1) { patch({ stage: p.stages[idx + 1] }); addXP(30, "Portfolio stage advanced"); }
+  function patch(v) {
+    saveGoals((prev) => {
+      const projects = [...prev.portfolio.projects];
+      projects[0] = { ...projects[0], ...v };
+      return { ...prev, portfolio: { ...prev.portfolio, projects } };
+    });
   }
 
   return (
     <div>
-      <p className="pt-sub" style={{ marginBottom: 16 }}>Priority: one strong urbanism case study, not many unfinished ones. Target: {fmtDate(settings.portfolioTarget)} ({daysLeft} days left).</p>
+      <p className="pt-sub" style={{ marginBottom: 16 }}>Priority: one strong case study, not many unfinished ones. Target: {fmtDate(settings.portfolioTarget)} ({daysLeft} days left).</p>
+
       <div className="pt-card" style={{ marginBottom: 20 }}>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 14 }}>Urbanism Portfolio Project — {pct}%</div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 16 }}>
-          {p.stages.map((s, i) => (
+          {PORTFOLIO_STAGES.map((s, i) => (
             <div
               key={s}
               className="pt-chip"
@@ -3796,23 +3848,38 @@ function UrbanismTab({ ctx }) {
           ))}
         </div>
         <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 10 }}>Tap an earlier stage to go back to it.</div>
-        <ProgressBar pct={((idx + 1) / p.stages.length) * 100} color="var(--urbanism)" />
-        {idx < p.stages.length - 1 && <button className="pt-btn pt-btn-primary" style={{ marginTop: 14 }} onClick={advance}>Advance to: {p.stages[idx + 1]} <ChevronRight size={14} /></button>}
+        <ProgressBar pct={pct} color="var(--urbanism)" />
+        {idx < PORTFOLIO_STAGES.length - 1 && (
+          <button className="pt-btn pt-btn-primary" style={{ marginTop: 14 }} onClick={() => patch({ stage: PORTFOLIO_STAGES[idx + 1] })}>
+            Advance to: {PORTFOLIO_STAGES[idx + 1]} <ChevronRight size={14} />
+          </button>
+        )}
       </div>
+
+      <div className="pt-card" style={{ marginBottom: 20 }}>
+        <Field label="Project title"><input className="pt-input" value={project.title} onChange={(e) => patch({ title: e.target.value })} /></Field>
+      </div>
+
       <div className="pt-card">
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Project</div>
-        <Field label="Project title"><input className="pt-input" value={p.project.title} onChange={(e) => patch({ project: { ...p.project, title: e.target.value } })} /></Field>
+        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 12 }}>Connections</div>
         <div className="pt-grid2">
-          <Field label="Site"><textarea className="pt-textarea" value={p.project.site} onChange={(e) => patch({ project: { ...p.project, site: e.target.value } })} /></Field>
-          <Field label="Problem"><textarea className="pt-textarea" value={p.project.problem} onChange={(e) => patch({ project: { ...p.project, problem: e.target.value } })} /></Field>
+          <Field label="Competition (optional)"><input className="pt-input" placeholder="Competition name" value={project.competition.name} onChange={(e) => patch({ competition: { ...project.competition, name: e.target.value } })} /></Field>
+          <Field label="Competition deadline (optional)"><input type="date" className="pt-input" value={project.competition.deadline} onChange={(e) => patch({ competition: { ...project.competition, deadline: e.target.value } })} /></Field>
         </div>
-        <div className="pt-grid2">
-          <Field label="Users"><textarea className="pt-textarea" value={p.project.users} onChange={(e) => patch({ project: { ...p.project, users: e.target.value } })} /></Field>
-          <Field label="Concept"><textarea className="pt-textarea" value={p.project.concept} onChange={(e) => patch({ project: { ...p.project, concept: e.target.value } })} /></Field>
-        </div>
-        <Field label="Urban strategy"><textarea className="pt-textarea" value={p.project.strategy} onChange={(e) => patch({ project: { ...p.project, strategy: e.target.value } })} /></Field>
-        <Field label="Notes"><textarea className="pt-textarea" value={p.project.notes} onChange={(e) => patch({ project: { ...p.project, notes: e.target.value } })} /></Field>
-        <Field label="Connected competition (optional)"><input className="pt-input" value={p.competitionLinked || ""} onChange={(e) => patch({ competitionLinked: e.target.value })} /></Field>
+        <Field label="Related literature (optional)">
+          <select className="pt-select" value={project.research.literatureId || ""} onChange={(e) => patch({ research: { ...project.research, literatureId: e.target.value || null } })}>
+            <option value="">— none —</option>
+            {literature.articles.map((a) => <option key={a.id} value={a.id}>{a.title || a.authors || "Untitled"}</option>)}
+          </select>
+        </Field>
+        <Field label="Research notes"><textarea className="pt-textarea" value={project.research.notes} onChange={(e) => patch({ research: { ...project.research, notes: e.target.value } })} /></Field>
+        <Field label="Related thesis section (optional)">
+          <select className="pt-select" value={project.thesisSectionKey || ""} onChange={(e) => patch({ thesisSectionKey: e.target.value })}>
+            <option value="">— none —</option>
+            {THESIS_SECTIONS_META.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
+          </select>
+        </Field>
+        <Field label="CV note / link"><input className="pt-input" placeholder="e.g. a link, or a short note on where this fits your CV" value={project.cvNote} onChange={(e) => patch({ cvNote: e.target.value })} /></Field>
       </div>
     </div>
   );
