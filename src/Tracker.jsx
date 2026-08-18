@@ -232,7 +232,25 @@ function computeThesisPlan(settings) {
    AI pass fills in later (Phase 2+), so nothing has to migrate later.
    ========================================================================= */
 function initLiterature() {
-  return { articles: [] };
+  return { articles: [], researchGaps: [] };
+}
+
+function blankResearchGap(text) {
+  return { id: uid(), text, status: "pending", note: "", createdAt: todayISO() };
+}
+
+// Safe-upgrade for accounts created before gap detection existed —
+// literature used to be just {articles}. Same defensive-fill pattern as
+// ensureChineseShape/ensurePortfolioShape/ensureInternshipShape.
+function ensureLiteratureShape(raw) {
+  if (!raw) return initLiterature();
+  return {
+    articles: Array.isArray(raw.articles) ? raw.articles : [],
+    researchGaps: Array.isArray(raw.researchGaps) ? raw.researchGaps : [],
+  };
+}
+function literatureNeedsUpgrade(raw) {
+  return !(raw && Array.isArray(raw.researchGaps));
 }
 
 function blankLiteratureArticle() {
@@ -814,7 +832,7 @@ export default function Tracker({ onSignOut }) {
   const [goalsRaw, saveGoals, gLoaded] = useStore("goals", initGoals);
   const [calendar, saveCalendar, cLoaded] = useStore("calendar", initCalendar);
   const [meta, saveMeta, mLoaded] = useStore("meta", initMeta);
-  const [literature, saveLiterature, lLoaded] = useStore("literature", initLiterature);
+  const [literatureRaw, saveLiterature, lLoaded] = useStore("literature", initLiterature);
 
   const [nav, setNav] = useState("home");
   const [toast, setToast] = useState(null);
@@ -827,6 +845,7 @@ export default function Tracker({ onSignOut }) {
   // the one-time upgrade below has persisted back to Supabase.
   const thesis = useMemo(() => migrateThesis(thesisRaw), [thesisRaw]);
   const goals = useMemo(() => normalizeGoals(goalsRaw), [goalsRaw]);
+  const literature = useMemo(() => ensureLiteratureShape(literatureRaw), [literatureRaw]);
 
   // One-time upgrade: old accounts (pre 11-section rebuild / pre-flashcards)
   // get their thesis and goals rows rewritten to the current shape, and any
@@ -844,7 +863,9 @@ export default function Tracker({ onSignOut }) {
     if (chineseGoalsNeedsUpgrade(goalsRaw) || portfolioGoalsNeedsUpgrade(goalsRaw) || internshipGoalsNeedsUpgrade(goalsRaw)) saveGoals(normalizeGoals(goalsRaw));
     const oldArticles = Array.isArray(thesisRaw && thesisRaw.literature) ? thesisRaw.literature : [];
     if (oldArticles.length > 0 && literature.articles.length === 0) {
-      saveLiterature({ articles: oldArticles.map(migrateLiteratureArticle) });
+      saveLiterature({ articles: oldArticles.map(migrateLiteratureArticle), researchGaps: [] });
+    } else if (literatureNeedsUpgrade(literatureRaw)) {
+      saveLiterature(ensureLiteratureShape(literatureRaw));
     }
     // eslint-disable-next-line
   }, [allLoaded]);
@@ -1767,44 +1788,51 @@ function LiteratureScreen({ ctx }) {
         <div style={{ display: "flex", gap: 6 }}>
           <button className="pt-btn pt-btn-sm" style={{ background: view === "library" ? "var(--thesis-soft)" : undefined, color: view === "library" ? "var(--thesis)" : undefined }} onClick={() => setView("library")}><LayoutList size={13} /> Library</button>
           <button className="pt-btn pt-btn-sm" style={{ background: view === "matrix" ? "var(--thesis-soft)" : undefined, color: view === "matrix" ? "var(--thesis)" : undefined }} onClick={() => setView("matrix")}><Table2 size={13} /> Matrix</button>
+          <button className="pt-btn pt-btn-sm" style={{ background: view === "gaps" ? "var(--thesis-soft)" : undefined, color: view === "gaps" ? "var(--thesis)" : undefined }} onClick={() => setView("gaps")}><Sparkles size={13} /> Gaps</button>
         </div>
         <button className="pt-btn pt-btn-primary" onClick={() => { setEditItem(blankLiteratureArticle()); setShowForm(true); }}><Plus size={14} /> Add article</button>
       </div>
 
-      <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ position: "relative", flex: "1 1 220px" }}>
-          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-faint)" }} />
-          <input className="pt-input" style={{ paddingLeft: 30 }} placeholder="Search title, authors, keywords, topic…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <select className="pt-select" style={{ width: 150 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="ALL">All statuses</option>
-          {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="pt-select" style={{ width: 160 }} value={usedFilter} onChange={(e) => setUsedFilter(e.target.value)}>
-          <option value="ALL">Used or not</option>
-          <option value="USED">Used in thesis</option>
-          <option value="NOT_USED">Not used yet</option>
-        </select>
-        <select className="pt-select" style={{ width: 170 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-          <option value="recent">Sort: recently added</option>
-          <option value="year">Sort: year</option>
-          <option value="title">Sort: title</option>
-          <option value="author">Sort: author</option>
-        </select>
-      </div>
-
-      {articles.length === 0 ? (
-        <EmptyState text="No articles yet. Add your first source to begin the literature review." />
-      ) : filtered.length === 0 ? (
-        <EmptyState text="No articles match your search or filters." />
-      ) : view === "library" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {filtered.map((a) => (
-            <LiteratureCard key={a.id} article={a} thesis={thesis} notify={notify} onEdit={() => { setEditItem(a); setShowForm(true); }} onDelete={() => setConfirmDeleteId(a.id)} />
-          ))}
-        </div>
+      {view === "gaps" ? (
+        <LiteratureGapsPanel ctx={ctx} />
       ) : (
-        <LiteratureMatrix articles={filtered} onChange={(id, patch) => saveLiterature((prev) => ({ ...prev, articles: prev.articles.map((a) => (a.id === id ? { ...a, ...patch } : a)) }))} />
+        <>
+          <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ position: "relative", flex: "1 1 220px" }}>
+              <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-faint)" }} />
+              <input className="pt-input" style={{ paddingLeft: 30 }} placeholder="Search title, authors, keywords, topic…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <select className="pt-select" style={{ width: 150 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="ALL">All statuses</option>
+              {["UNREAD", "READING", "ANALYSED"].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select className="pt-select" style={{ width: 160 }} value={usedFilter} onChange={(e) => setUsedFilter(e.target.value)}>
+              <option value="ALL">Used or not</option>
+              <option value="USED">Used in thesis</option>
+              <option value="NOT_USED">Not used yet</option>
+            </select>
+            <select className="pt-select" style={{ width: 170 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="recent">Sort: recently added</option>
+              <option value="year">Sort: year</option>
+              <option value="title">Sort: title</option>
+              <option value="author">Sort: author</option>
+            </select>
+          </div>
+
+          {articles.length === 0 ? (
+            <EmptyState text="No articles yet. Add your first source to begin the literature review." />
+          ) : filtered.length === 0 ? (
+            <EmptyState text="No articles match your search or filters." />
+          ) : view === "library" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {filtered.map((a) => (
+                <LiteratureCard key={a.id} article={a} thesis={thesis} notify={notify} onEdit={() => { setEditItem(a); setShowForm(true); }} onDelete={() => setConfirmDeleteId(a.id)} />
+              ))}
+            </div>
+          ) : (
+            <LiteratureMatrix articles={filtered} onChange={(id, patch) => saveLiterature((prev) => ({ ...prev, articles: prev.articles.map((a) => (a.id === id ? { ...a, ...patch } : a)) }))} />
+          )}
+        </>
       )}
 
       {showForm && (
@@ -1820,6 +1848,173 @@ function LiteratureScreen({ ctx }) {
           onCancel={() => setConfirmDeleteId(null)}
         />
       )}
+    </div>
+  );
+}
+
+const MIN_GAP_ARTICLES = 3;
+const GAP_STATUS_META = {
+  pending: { color: "var(--gold)", label: "Potential research gap — requires verification" },
+  confirmed: { color: "var(--ontrack)", label: "Confirmed gap" },
+  rejected: { color: "var(--ink-faint)", label: "Rejected" },
+};
+
+// Articles with nothing extracted yet (no topic/keyConcepts/findings, e.g.
+// added manually and never analyzed) contribute nothing to gap detection —
+// excluded here rather than sent as empty noise.
+function literatureGapsUsableArticles(articles) {
+  return articles.filter((a) => (a.topic || "").trim() || (a.keyConcepts || "").trim() || (a.findings || "").trim());
+}
+
+// Corpus-wide gap detection — manual trigger only (never runs on its own,
+// to avoid burning the free GLM quota on every edit). Rejecting a gap sets
+// an explicit status rather than removing it from the list, and a fresh
+// detection run is deduped against every gap already on file regardless of
+// status — the same "explicit flag, not an empty-list condition" fix as
+// the Phase 2 framework-concepts reseeding bug, so a rejected gap can't
+// silently reappear just because the list looked short.
+function LiteratureGapsPanel({ ctx }) {
+  const { literature, saveLiterature, thesis, notify } = ctx;
+  const gaps = literature.researchGaps;
+  const usableArticles = useMemo(() => literatureGapsUsableArticles(literature.articles), [literature.articles]);
+  const [detecting, setDetecting] = useState(false);
+  const [detectError, setDetectError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+
+  const canDetect = usableArticles.length >= MIN_GAP_ARTICLES;
+
+  async function handleDetect() {
+    setDetecting(true); setDetectError("");
+    try {
+      const fw = thesis.sections.framework;
+      const thesisParts = [];
+      if (fw.concepts && fw.concepts.length) thesisParts.push(`Conceptual framework: ${fw.concepts.map((c) => c.name).join(" → ")}`);
+      const rqBlocks = (thesis.sections.researchQuestions && thesis.sections.researchQuestions.blocks) || [];
+      if (rqBlocks[0] && rqBlocks[0].text) thesisParts.push(`Main research question: ${rqBlocks[0].text}`);
+
+      const res = await fetch("/.netlify/functions/detect-research-gaps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articles: usableArticles.map((a) => ({ title: a.title, year: a.year, topic: a.topic, keyConcepts: a.keyConcepts, findings: a.findings })),
+          thesisContext: thesisParts.join(" · "),
+          existingGaps: gaps.map((g) => g.text),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Detection failed (${res.status}).`);
+
+      // Belt-and-suspenders dedup on top of the prompt-level instruction —
+      // checked against ALL existing gaps (pending/confirmed/rejected
+      // alike), never just the visible ones.
+      const existingTexts = new Set(gaps.map((g) => g.text.trim().toLowerCase()));
+      const fresh = (data.gaps || []).filter((t) => t && !existingTexts.has(t.trim().toLowerCase()));
+      if (fresh.length === 0) {
+        notify("No new gaps found beyond what's already listed.");
+      } else {
+        saveLiterature((prev) => ({ ...prev, researchGaps: [...fresh.map((t) => blankResearchGap(t)), ...prev.researchGaps] }));
+        notify(`${fresh.length} potential gap${fresh.length === 1 ? "" : "s"} found — review below.`);
+      }
+    } catch (e) {
+      setDetectError(String(e.message || e));
+    } finally {
+      setDetecting(false);
+    }
+  }
+
+  function setStatus(id, status) {
+    saveLiterature((prev) => ({ ...prev, researchGaps: prev.researchGaps.map((g) => (g.id === id ? { ...g, status } : g)) }));
+  }
+  function editText(id, text) {
+    saveLiterature((prev) => ({ ...prev, researchGaps: prev.researchGaps.map((g) => (g.id === id ? { ...g, text } : g)) }));
+  }
+  function editNote(id, note) {
+    saveLiterature((prev) => ({ ...prev, researchGaps: prev.researchGaps.map((g) => (g.id === id ? { ...g, note } : g)) }));
+  }
+  function removeGap(id) {
+    const removed = gaps.find((g) => g.id === id);
+    saveLiterature((prev) => ({ ...prev, researchGaps: prev.researchGaps.filter((g) => g.id !== id) }));
+    notify("Gap removed", () => saveLiterature((prev) => (prev.researchGaps.some((g) => g.id === id) ? prev : { ...prev, researchGaps: [removed, ...prev.researchGaps] })));
+  }
+
+  const filtered = statusFilter === "ALL" ? gaps : gaps.filter((g) => g.status === statusFilter);
+
+  return (
+    <div>
+      <div className="pt-card pt-card-tight" style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>Research Gap Map</div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 2 }}>
+            {canDetect
+              ? `${usableArticles.length} article${usableArticles.length === 1 ? "" : "s"} with extracted content available.`
+              : `Needs at least ${MIN_GAP_ARTICLES} articles with Topic, Key concepts, or Findings filled in (manually or via Analyze with AI) — you have ${usableArticles.length}.`}
+          </div>
+        </div>
+        <button className="pt-btn pt-btn-primary" disabled={!canDetect || detecting} onClick={handleDetect}>
+          {detecting ? <Loader2 size={13} className="pt-spin" /> : <Sparkles size={13} />} {detecting ? "Detecting…" : "Detect gaps"}
+        </button>
+      </div>
+
+      {detectError && <div className="pt-field-error" style={{ marginBottom: 16 }}>{detectError}</div>}
+
+      {gaps.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <select className="pt-select" style={{ width: 190 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="ALL">All gaps ({gaps.length})</option>
+            <option value="pending">Pending review</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      )}
+
+      {gaps.length === 0 ? (
+        <EmptyState text="No gaps detected yet. Run detection once you have a few analyzed articles." />
+      ) : filtered.length === 0 ? (
+        <EmptyState text="No gaps match this filter." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {filtered.map((g) => (
+            <ResearchGapCard key={g.id} gap={g} onStatus={(s) => setStatus(g.id, s)} onEditText={(t) => editText(g.id, t)} onEditNote={(n) => editNote(g.id, n)} onRemove={() => removeGap(g.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResearchGapCard({ gap, onStatus, onEditText, onEditNote, onRemove }) {
+  const [editingText, setEditingText] = useState(false);
+  const [textDraft, setTextDraft] = useState(gap.text);
+  const meta = GAP_STATUS_META[gap.status] || GAP_STATUS_META.pending;
+
+  return (
+    <div className="pt-card pt-card-tight" style={{ opacity: gap.status === "rejected" ? 0.6 : 1 }}>
+      <span className="pt-chip" style={{ background: meta.color, color: "#fff", display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 10 }}>
+        <Sparkles size={11} /> {meta.label}
+      </span>
+
+      {editingText ? (
+        <div style={{ marginBottom: 10 }}>
+          <textarea className="pt-textarea" value={textDraft} onChange={(e) => setTextDraft(e.target.value)} />
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={() => { onEditText(textDraft); setEditingText(false); }}>Save</button>
+            <button className="pt-btn pt-btn-sm" onClick={() => { setTextDraft(gap.text); setEditingText(false); }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 13.5, marginBottom: 10 }}>{gap.text}</div>
+      )}
+
+      <Field label="Your notes (optional)"><textarea className="pt-textarea" value={gap.note} onChange={(e) => onEditNote(e.target.value)} /></Field>
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+        {gap.status !== "confirmed" && <button className="pt-btn pt-btn-sm" onClick={() => onStatus("confirmed")}><Check size={12} /> Confirm</button>}
+        {gap.status !== "rejected" && <button className="pt-btn pt-btn-sm pt-btn-danger" onClick={() => onStatus("rejected")}><X size={12} /> Reject</button>}
+        {gap.status !== "pending" && <button className="pt-btn pt-btn-sm" onClick={() => onStatus("pending")}>Mark pending</button>}
+        {!editingText && <button className="pt-btn pt-btn-sm pt-btn-ghost" onClick={() => setEditingText(true)}><Edit3 size={12} /> Edit text</button>}
+        <button className="pt-btn pt-btn-sm pt-btn-ghost pt-btn-danger" onClick={onRemove}><Trash2 size={12} /> Delete</button>
+      </div>
     </div>
   );
 }
