@@ -1680,6 +1680,39 @@ async function removeLiteratureFile(filePath) {
   const { error } = await supabase.storage.from(LITERATURE_BUCKET).remove([filePath]);
   if (error) throw error;
 }
+async function fetchStoredLiteratureFile(filePath) {
+  const { data, error } = await supabase.storage.from(LITERATURE_BUCKET).createSignedUrl(filePath, 600);
+  if (error) throw error;
+  const res = await fetch(data.signedUrl);
+  if (!res.ok) throw new Error("Couldn't download the attached file.");
+  return await res.blob();
+}
+
+// Client-side text extraction for "Analyze with AI" — PDF and plain text
+// only. Returns null (not an error) for unsupported types like .docx, so
+// the caller can say clearly "can't read this file" instead of guessing.
+async function extractArticleText(blob, fileName, fileType) {
+  const type = (fileType || "").toLowerCase();
+  const name = (fileName || "").toLowerCase();
+  if (type === "text/plain" || name.endsWith(".txt")) {
+    return (await blob.text()).trim();
+  }
+  if (type === "application/pdf" || name.endsWith(".pdf")) {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href;
+    const buf = await blob.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((it) => it.str).join(" ") + "\n";
+    }
+    return text.trim();
+  }
+  return null;
+}
+
 async function openLiteratureFile(filePath) {
   const { data, error } = await supabase.storage.from(LITERATURE_BUCKET).createSignedUrl(filePath, 600);
   if (error) throw error;
@@ -1840,6 +1873,21 @@ const LITERATURE_RELEVANCE_FLAGS = [
   ["relevantInformalLearning", "Informal learning"],
 ];
 
+// Field set the AI analysis fills — the matrix's textual analysis fields
+// only. Boolean judgment calls (relevance flags, usedInThesis) stay manual.
+const LITERATURE_ANALYSIS_FIELDS = [
+  ["topic", "Topic"],
+  ["researchQuestion", "Research question"],
+  ["method", "Method"],
+  ["sample", "Sample"],
+  ["context", "Context"],
+  ["keyConcepts", "Key concepts"],
+  ["findings", "Findings"],
+  ["limitations", "Limitations"],
+  ["relevanceToThesis", "Relevance to thesis"],
+  ["potentialGap", "Potential gap"],
+];
+
 function LiteratureForm({ item, thesis, notify, onClose, onSave }) {
   const [draft, setDraft] = useState({ ...blankLiteratureArticle(), ...item });
   const fw = thesis.sections.framework;
@@ -1847,7 +1895,50 @@ function LiteratureForm({ item, thesis, notify, onClose, onSave }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [confirmRemoveFile, setConfirmRemoveFile] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState(null);
   const canSave = draft.title.trim().length > 0;
+
+  async function handleAnalyze() {
+    setAnalyzing(true); setAnalyzeError(""); setAiSuggestion(null);
+    try {
+      let blob = file;
+      let fileName = file ? file.name : draft.fileName;
+      let fileType = file ? file.type : draft.fileType;
+      if (!blob) {
+        if (!draft.filePath) throw new Error("Attach a file first — there's nothing to analyze yet.");
+        blob = await fetchStoredLiteratureFile(draft.filePath);
+      }
+      const text = await extractArticleText(blob, fileName, fileType);
+      if (text === null) throw new Error(`Can't extract text from "${fileName || "this file"}" — only PDF and TXT files are supported for AI analysis right now.`);
+      if (!text) throw new Error("Couldn't extract any text from this file — it may be a scanned/image-only PDF. Try a text-based file instead.");
+
+      const thesisParts = [];
+      if (fw.concepts && fw.concepts.length) thesisParts.push(`Conceptual framework: ${fw.concepts.map((c) => c.name).join(" → ")}`);
+      const rqBlocks = (thesis.sections.researchQuestions && thesis.sections.researchQuestions.blocks) || [];
+      if (rqBlocks[0] && rqBlocks[0].text) thesisParts.push(`Main research question: ${rqBlocks[0].text}`);
+
+      const res = await fetch("/.netlify/functions/analyze-literature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, thesisContext: thesisParts.join(" · ") }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Analysis failed (${res.status}).`);
+      setAiSuggestion(data);
+    } catch (e) {
+      setAnalyzeError(String(e.message || e));
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  function applySuggestion() {
+    setDraft((d) => ({ ...d, ...aiSuggestion }));
+    setAiSuggestion(null);
+    notify("AI suggestions applied — review before saving.");
+  }
 
   async function handleSave() {
     if (!canSave) return;
@@ -1911,9 +2002,32 @@ function LiteratureForm({ item, thesis, notify, onClose, onSave }) {
 
       <div className="pt-card pt-card-tight" style={{ marginTop: 16, marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-          <div className="pt-label" style={{ margin: 0 }}>Matrix fields — fill manually for now</div>
-          <button className="pt-btn pt-btn-sm" disabled title="Coming later — will auto-fill these fields from the attached file"><Lock size={11} /> Analyze with AI · Coming Later</button>
+          <div className="pt-label" style={{ margin: 0 }}>Matrix fields</div>
+          <button className="pt-btn pt-btn-sm" disabled={analyzing} onClick={handleAnalyze}>
+            {analyzing ? <Loader2 size={11} className="pt-spin" /> : <Sparkles size={11} />} {analyzing ? "Analyzing…" : "Analyze with AI"}
+          </button>
         </div>
+        {analyzeError && <div className="pt-field-error" style={{ marginBottom: 12 }}>{analyzeError}</div>}
+        {aiSuggestion && (
+          <div className="pt-card pt-card-tight" style={{ marginBottom: 16, borderColor: "var(--gold)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span className="pt-chip" style={{ background: "var(--gold)", color: "#fff", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Sparkles size={11} /> AI Suggested
+              </span>
+              <span style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>Review before applying — nothing changes until you accept.</span>
+            </div>
+            {LITERATURE_ANALYSIS_FIELDS.map(([key, label]) => (aiSuggestion[key] ? (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>{label}</div>
+                <div style={{ fontSize: 12.5 }}>{aiSuggestion[key]}</div>
+              </div>
+            ) : null))}
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={applySuggestion}><Check size={12} /> Apply to form</button>
+              <button className="pt-btn pt-btn-sm" onClick={() => setAiSuggestion(null)}>Discard</button>
+            </div>
+          </div>
+        )}
         <div className="pt-grid2">
           <Field label="Topic"><input className="pt-input" value={draft.topic} onChange={(e) => setDraft({ ...draft, topic: e.target.value })} /></Field>
           <Field label="Research question"><input className="pt-input" value={draft.researchQuestion} onChange={(e) => setDraft({ ...draft, researchQuestion: e.target.value })} /></Field>
