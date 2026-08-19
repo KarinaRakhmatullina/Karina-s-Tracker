@@ -5,7 +5,7 @@ import {
   Plus, X, Check, ChevronRight, ChevronLeft, ChevronDown, Download, Upload, Sparkles,
   AlertTriangle, CheckCircle2, Circle, Briefcase, Languages, Building2,
   Loader2, Edit3, Trash2, Info, LogOut, Search, Paperclip, ExternalLink,
-  Lock, Table2, LayoutList, Volume2
+  Table2, LayoutList, Volume2
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TOKENS, FontLoader } from "./theme";
@@ -614,9 +614,9 @@ function portfolioGoalsNeedsUpgrade(raw) {
   return !(raw && raw.portfolio && Array.isArray(raw.portfolio.projects));
 }
 
-const LEARNING_RESOURCE_TYPES = ["Article", "Case Study", "Video", "Book"];
+const LEARNING_RESOURCE_TYPES = ["Article", "Case Study", "Video", "Book", "Concept"];
 function blankLearningResource() {
-  return { id: null, title: "", link: "", type: "Article", relevance: "", status: "TO_READ" };
+  return { id: null, title: "", link: "", type: "Article", relevance: "", howItHelps: "", status: "TO_READ" };
 }
 
 // Safe-upgrade: goals.internship used to be just {applications, active} —
@@ -3053,6 +3053,9 @@ function InternshipLearning({ ctx }) {
   const learning = goals.internship.learning;
   const [showForm, setShowForm] = useState(false);
   const [item, setItem] = useState(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
 
   function upsert(v) {
     const isNew = !learning.some((r) => r.id === v.id);
@@ -3069,6 +3072,35 @@ function InternshipLearning({ ctx }) {
   }
   const canSave = !!(item && item.title.trim());
 
+  // Manual trigger only — never called automatically. Suggestions are
+  // ephemeral (not saved anywhere) until she explicitly adds one, so
+  // "Ignore" just drops it from view rather than needing its own
+  // persisted rejection state.
+  async function handleSuggest() {
+    setSuggesting(true); setSuggestError("");
+    try {
+      const res = await fetch("/.netlify/functions/suggest-internship-learning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ existingTopics: learning.map((r) => r.title) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Suggestion failed (${res.status}).`);
+      setSuggestions((data.suggestions || []).map((s) => ({ ...s, _id: uid() })));
+    } catch (e) {
+      setSuggestError(String(e.message || e));
+    } finally {
+      setSuggesting(false);
+    }
+  }
+  function addSuggestion(s) {
+    upsert({ id: uid(), title: s.topic, link: "", type: "Concept", relevance: s.whyRelevant, howItHelps: s.howItHelps, status: "TO_READ" });
+    setSuggestions((prev) => prev.filter((x) => x._id !== s._id));
+  }
+  function ignoreSuggestion(id) {
+    setSuggestions((prev) => prev.filter((x) => x._id !== id));
+  }
+
   return (
     <div className="pt-card" style={{ marginTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
@@ -3077,10 +3109,44 @@ function InternshipLearning({ ctx }) {
           <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Direction: Design Strategy + Spatial Strategy / Space Organization</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="pt-btn pt-btn-sm" disabled title="Coming later"><Lock size={11} /> Suggest with AI · Coming Later</button>
+          <button className="pt-btn pt-btn-sm" disabled={suggesting} onClick={handleSuggest}>
+            {suggesting ? <Loader2 size={11} className="pt-spin" /> : <Sparkles size={11} />} {suggesting ? "Suggesting…" : "Suggest with AI"}
+          </button>
           <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={() => { setItem(blankLearningResource()); setShowForm(true); }}><Plus size={14} /> Add resource</button>
         </div>
       </div>
+
+      {suggestError && <div className="pt-field-error" style={{ marginTop: 12 }}>{suggestError}</div>}
+
+      {suggestions.length > 0 && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {suggestions.map((s) => (
+            <div key={s._id} className="pt-card pt-card-tight" style={{ borderColor: "var(--gold)" }}>
+              <span className="pt-chip" style={{ background: "var(--gold)", color: "#fff", display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+                <Sparkles size={11} /> AI Suggested
+              </span>
+              <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 6 }}>{s.topic}</div>
+              {s.whyRelevant && (
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>Why this is relevant</div>
+                  <div style={{ fontSize: 12.5 }}>{s.whyRelevant}</div>
+                </div>
+              )}
+              {s.howItHelps && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>How it helps me develop</div>
+                  <div style={{ fontSize: 12.5 }}>{s.howItHelps}</div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="pt-btn pt-btn-sm pt-btn-primary" onClick={() => addSuggestion(s)}><Plus size={12} /> Add to list</button>
+                <button className="pt-btn pt-btn-sm" onClick={() => ignoreSuggestion(s._id)}>Ignore</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ marginTop: 14 }}>
         {learning.length === 0 ? <EmptyState text="No resources added yet." /> : learning.map((r) => (
           <div key={r.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line-soft)" }}>
@@ -3097,6 +3163,7 @@ function InternshipLearning({ ctx }) {
                 <span className="pt-chip">{r.type}</span>
               </div>
               {r.relevance && <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>{r.relevance}</div>}
+              {r.howItHelps && <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>{r.howItHelps}</div>}
             </div>
             <button className="pt-btn-ghost pt-btn" onClick={() => { setItem(r); setShowForm(true); }}><Edit3 size={13} /></button>
             <button className="pt-btn-ghost pt-btn pt-btn-danger" onClick={() => remove(r.id)}><Trash2 size={13} /></button>
@@ -3113,6 +3180,7 @@ function InternshipLearning({ ctx }) {
             </select>
           </Field>
           <Field label="Why this is relevant to my development"><textarea className="pt-textarea" value={item.relevance} onChange={(e) => setItem({ ...item, relevance: e.target.value })} /></Field>
+          <Field label="How this helps me develop (optional)"><textarea className="pt-textarea" value={item.howItHelps || ""} onChange={(e) => setItem({ ...item, howItHelps: e.target.value })} /></Field>
           {!canSave && <div className="pt-field-error">Title is required.</div>}
           <button className="pt-btn pt-btn-primary" disabled={!canSave} onClick={() => { upsert({ ...item, id: item.id || uid() }); setShowForm(false); }}>Save</button>
         </Modal>
