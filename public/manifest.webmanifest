@@ -1,7 +1,7 @@
 {
   "name": "Field Notes — Personal Tracker",
   "short_name": "Field Notes",
-  "description": "Personal productivity tracker for thesis, internship, languages and portfolio goals.",
+  "description": "Personal productivity tracker for thesis, languages and portfolio goals.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
