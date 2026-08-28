@@ -134,7 +134,8 @@ function initSettings() {
     dailyFrenchMinutes: 60,
     dailyChineseWords: 5,        // Default: 5 new words/day
     dailyChineseMaxReviews: 10,  // Controlled review queue to avoid card explosion
-    loveNote: "Je pense très fort à toi cette semaine mon amour. Fonce pour ta thèse, je suis tellement fier de toi et de tout ce que tu accomplis. Gros bisous de France ! ❤️",
+    loveNote: "Thinking of you so much this week my love. Give everything for your thesis, I am so proud of you and everything you do. Big kisses from France! ❤️",
+    hugMessage: "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️",
     loveNoteAuthor: "Titouan",
     loveNoteUpdatedAt: todayISO(),
     reunionDate: "",
@@ -794,7 +795,8 @@ function LoveNoteBanner({ ctx }) {
   const [hearts, setHearts] = useState([]);
   const [showHugModal, setShowHugModal] = useState(false);
 
-  const note = settings.loveNote || "Je pense très fort à toi cette semaine mon amour. Fonce pour ta thèse, je suis tellement fier de toi et de tout ce que tu accomplis. Gros bisous de France ! ❤️";
+  const note = settings.loveNote || "Thinking of you so much this week my love. Give everything for your thesis, I am so proud of you and everything you do. Big kisses from France! ❤️";
+  const hugMsg = settings.hugMessage || "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️";
   const author = settings.loveNoteAuthor || "Titouan";
   const hugsCount = meta.hugsCount || 0;
 
@@ -814,7 +816,7 @@ function LoveNoteBanner({ ctx }) {
       ...prev,
       hugsCount: (prev.hugsCount || 0) + 1,
     }));
-    addXP(10, "Gros câlin reçu ❤️");
+    addXP(10, "Big hug received ❤️");
     setShowHugModal(true);
   }
 
@@ -833,19 +835,18 @@ function LoveNoteBanner({ ctx }) {
         </span>
       ))}
 
-      {/* Top row: Clocks & Origin Badge */}
+      {/* Top row: Clocks & Origin Badge (distance removed) */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
         <div className="pt-dual-clock">
           <span>🇫🇷 Paris <strong style={{ color: "#E05670" }}>{paris || "—:—"}</strong></span>
           <span className="pt-clock-dot" />
           <span>🇨🇳 Shanghai <strong>{shanghai || "—:—"}</strong></span>
-          <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 500 }}>· 9 270 km</span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {daysToReunion != null && daysToReunion > 0 && (
             <span className="pt-chip" style={{ background: "#FFE4E9", color: "#E05670", fontWeight: 700 }}>
-              ✈️ Retrouvailles dans {daysToReunion} jours !
+              ✈️ Reunion in {daysToReunion} days!
             </span>
           )}
           <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>
@@ -861,30 +862,30 @@ function LoveNoteBanner({ ctx }) {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: "#E05670" }}>
-            — Avec tout mon amour, {author}
+            — With all my love, {author}
           </div>
           <button className="pt-hug-btn pt-tap" onClick={triggerHug}>
-            <span>❤️</span> Envoyer un gros câlin {hugsCount > 0 && `(${hugsCount})`}
+            <span>❤️</span> Send a big hug {hugsCount > 0 && `(${hugsCount})`}
           </button>
         </div>
       </div>
 
       {/* Hug Modal */}
       {showHugModal && (
-        <Modal title="Gros Câlin Bien Reçu ! 🥰" onClose={() => setShowHugModal(false)}>
+        <Modal title="Big Hug Received! 🥰" onClose={() => setShowHugModal(false)}>
           <div style={{ textAlign: "center", padding: "12px 6px" }}>
             <div style={{ fontSize: 44, marginBottom: 12 }}>💌 ❤️ 🇫🇷 ✈️ 🇨🇳</div>
             <h3 className="pt-h2" style={{ color: "#E05670", marginBottom: 8 }}>
-              Câlin envoyé depuis la France !
+              Hug sent all the way from France!
             </h3>
-            <p className="pt-sub" style={{ fontSize: 14.5, lineHeight: 1.6, marginBottom: 18 }}>
-              Titouan pense très fort à toi en ce moment même. Même à 9 270 km de distance, il est toujours à tes côtés pour t'encourager et te soutenir. Je t'aime plus que tout au monde !
+            <p className="pt-sub" style={{ fontSize: 14.5, lineHeight: 1.6, marginBottom: 18, color: "var(--ink)" }}>
+              {hugMsg}
             </p>
             <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 16 }}>
-              Total des câlins partagés : <strong>{hugsCount}</strong>
+              Total hugs shared: <strong>{hugsCount}</strong>
             </div>
             <button className="pt-btn pt-btn-primary" style={{ background: "#E05670", borderColor: "#E05670" }} onClick={() => setShowHugModal(false)}>
-              Merci mon amour ❤️
+              Thank you my love ❤️
             </button>
           </div>
         </Modal>
@@ -2848,6 +2849,14 @@ function SettingsScreen({ ctx }) {
     reader.readAsText(file);
   }
 
+  const [showSecretEditor, setShowSecretEditor] = useState(false);
+  const [secretDraft, setSecretDraft] = useState({
+    loveNote: settings.loveNote || "Thinking of you so much this week my love. Give everything for your thesis, I am so proud of you and everything you do. Big kisses from France! ❤️",
+    hugMessage: settings.hugMessage || "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️",
+    loveNoteAuthor: settings.loveNoteAuthor || "Titouan",
+    reunionDate: settings.reunionDate || "",
+  });
+
   function confirmImport() {
     const bundle = pendingImport;
     if (bundle.settings) saveSettings(bundle.settings);
@@ -2858,6 +2867,16 @@ function SettingsScreen({ ctx }) {
     if (bundle.literature) saveLiterature(bundle.literature);
     setPendingImport(null);
     notify("Backup imported successfully");
+  }
+
+  function saveSecretNotes() {
+    saveSettings((p) => ({
+      ...p,
+      ...secretDraft,
+      loveNoteUpdatedAt: todayISO(),
+    }));
+    setShowSecretEditor(false);
+    notify("Secret love notes updated! ❤️");
   }
 
   return (
@@ -2887,45 +2906,6 @@ function SettingsScreen({ ctx }) {
           </Field>
           <Field label="🏙️ Urbanism Portfolio Deadline (Oct 31, 2026)">
             <input type="date" className="pt-input" value={settings.portfolioTarget} onChange={(e) => saveSettings((p) => ({ ...p, portfolioTarget: e.target.value }))} />
-          </Field>
-        </div>
-      </div>
-
-      {/* Love Note & Long Distance Settings */}
-      <div className="pt-card" style={{ marginBottom: 20, borderColor: "#F5D3D9", background: "linear-gradient(135deg, #FFF8F8 0%, #FFFFFF 100%)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 20 }}>💌</span>
-          <div>
-            <div className="pt-h2" style={{ fontSize: 16, margin: 0, color: "#E05670" }}>Mots doux & Relation à distance (France ⇄ Shanghai)</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Écris ou mets à jour le mot d'amour affiché en haut de son tableau de bord.</div>
-          </div>
-        </div>
-
-        <Field label="Mot doux pour Karina (texte affiché sur son accueil)">
-          <textarea
-            className="pt-textarea"
-            style={{ minHeight: 80, fontStyle: "italic" }}
-            value={settings.loveNote || ""}
-            onChange={(e) => saveSettings((p) => ({ ...p, loveNote: e.target.value, loveNoteUpdatedAt: todayISO() }))}
-            placeholder="Écris ton mot doux personnalisé ici…"
-          />
-        </Field>
-
-        <div className="pt-grid2">
-          <Field label="Signature / Surnom (ex: Titouan, Ton amoureux)">
-            <input
-              className="pt-input"
-              value={settings.loveNoteAuthor || "Titouan"}
-              onChange={(e) => saveSettings((p) => ({ ...p, loveNoteAuthor: e.target.value }))}
-            />
-          </Field>
-          <Field label="Date des prochaines retrouvailles (optionnel — affiche le compte à rebours)">
-            <input
-              type="date"
-              className="pt-input"
-              value={settings.reunionDate || ""}
-              onChange={(e) => saveSettings((p) => ({ ...p, reunionDate: e.target.value }))}
-            />
           </Field>
         </div>
       </div>
@@ -2975,9 +2955,92 @@ function SettingsScreen({ ctx }) {
       </div>
 
       <div className="pt-card">
-        <div className="pt-h2" style={{ fontSize: 15, marginBottom: 10 }}>Account</div>
-        <button className="pt-btn" onClick={onSignOut}><LogOut size={14} /> Sign out</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div className="pt-h2" style={{ fontSize: 15, margin: 0 }}>Account</div>
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>Private workspace account</div>
+          </div>
+          <button className="pt-btn" onClick={onSignOut}><LogOut size={14} /> Sign out</button>
+        </div>
       </div>
+
+      {/* Discreet secret trigger for Titouan */}
+      <div style={{ marginTop: 28, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 6px" }}>
+        <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>
+          Field Notes Tracker · Build v2.5
+        </div>
+        <button
+          className="pt-btn pt-btn-ghost pt-tap"
+          style={{ padding: "4px 8px", fontSize: 11.5, color: "var(--ink-faint)", opacity: 0.6 }}
+          onClick={() => {
+            setSecretDraft({
+              loveNote: settings.loveNote || "Thinking of you so much this week my love. Give everything for your thesis, I am so proud of you and everything you do. Big kisses from France! ❤️",
+              hugMessage: settings.hugMessage || "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️",
+              loveNoteAuthor: settings.loveNoteAuthor || "Titouan",
+              reunionDate: settings.reunionDate || "",
+            });
+            setShowSecretEditor(true);
+          }}
+          title="System Personalization"
+        >
+          ❤️
+        </button>
+      </div>
+
+      {/* Secret Love Note Editor Modal */}
+      {showSecretEditor && (
+        <Modal title="💌 Titouan's Secret Love Note Vault" wide onClose={() => setShowSecretEditor(false)}>
+          <p className="pt-sub" style={{ marginBottom: 16 }}>
+            Customize the sweet messages that appear on Karina's dashboard and in the hug popup.
+          </p>
+
+          <Field label="1. Main Dashboard Love Note (Weekly message)">
+            <textarea
+              className="pt-textarea"
+              style={{ minHeight: 90 }}
+              value={secretDraft.loveNote}
+              onChange={(e) => setSecretDraft({ ...secretDraft, loveNote: e.target.value })}
+              placeholder="Write your sweet weekly message for Karina (in English)…"
+            />
+          </Field>
+
+          <Field label="2. Hug Popup Message (Shown when she clicks 'Send a big hug')">
+            <textarea
+              className="pt-textarea"
+              style={{ minHeight: 90 }}
+              value={secretDraft.hugMessage}
+              onChange={(e) => setSecretDraft({ ...secretDraft, hugMessage: e.target.value })}
+              placeholder="Write what she sees when she presses the hug button (in English)…"
+            />
+          </Field>
+
+          <div className="pt-grid2">
+            <Field label="Signature / Author Name">
+              <input
+                className="pt-input"
+                value={secretDraft.loveNoteAuthor}
+                onChange={(e) => setSecretDraft({ ...secretDraft, loveNoteAuthor: e.target.value })}
+                placeholder="Titouan"
+              />
+            </Field>
+            <Field label="Next Reunion Date (Optional countdown)">
+              <input
+                type="date"
+                className="pt-input"
+                value={secretDraft.reunionDate}
+                onChange={(e) => setSecretDraft({ ...secretDraft, reunionDate: e.target.value })}
+              />
+            </Field>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+            <button className="pt-btn" onClick={() => setShowSecretEditor(false)}>Cancel</button>
+            <button className="pt-btn pt-btn-primary" style={{ background: "#E05670", borderColor: "#E05670" }} onClick={saveSecretNotes}>
+              Save Secret Notes ❤️
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {pendingImport && (
         <ConfirmDialog
