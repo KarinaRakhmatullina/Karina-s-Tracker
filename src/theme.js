@@ -223,6 +223,87 @@ export const TOKENS = `
     .pt-btn-ghost{ min-width:38px; min-height:38px; }
     .pt-btn-sm{ min-height:36px; padding:7px 12px; }
   }
+
+  /* ---- love note & distance banner ---- */
+  .pt-love-card{
+    background: linear-gradient(135deg, #FFF8F8 0%, #FFF2F4 100%);
+    border: 1px solid #F5D3D9;
+    border-radius: var(--radius-lg);
+    padding: 22px 24px;
+    box-shadow: 0 4px 20px rgba(224, 112, 133, 0.08);
+    position: relative;
+    overflow: hidden;
+  }
+  .pt-love-card::before{
+    content: '❤️';
+    position: absolute;
+    right: -15px;
+    bottom: -15px;
+    font-size: 110px;
+    opacity: 0.05;
+    pointer-events: none;
+  }
+  .pt-dual-clock{
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid #F0CCD3;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  .pt-clock-dot{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #E05670;
+    animation: pt-pulse-dot 1.5s infinite;
+  }
+  @keyframes pt-pulse-dot{
+    0%{ transform: scale(0.9); opacity: 0.6; }
+    50%{ transform: scale(1.3); opacity: 1; }
+    100%{ transform: scale(0.9); opacity: 0.6; }
+  }
+  .pt-hug-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #E05670;
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 100px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(224, 86, 112, 0.25);
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .pt-hug-btn:hover{
+    background: #D04560;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(224, 86, 112, 0.35);
+  }
+  .pt-hug-btn:active{
+    transform: scale(0.97);
+  }
+  .pt-floating-heart{
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    font-size: 24px;
+    animation: pt-float-up 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes pt-float-up{
+    0%{ opacity: 1; transform: translateY(0) scale(0.6) rotate(0deg); }
+    50%{ opacity: 0.9; transform: translateY(-70px) scale(1.2) rotate(15deg); }
+    100%{ opacity: 0; transform: translateY(-160px) scale(1.6) rotate(-20deg); }
+  }
 `;
 
 /* =========================================================================

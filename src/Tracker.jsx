@@ -134,6 +134,10 @@ function initSettings() {
     dailyFrenchMinutes: 60,
     dailyChineseWords: 5,        // Default: 5 new words/day
     dailyChineseMaxReviews: 10,  // Controlled review queue to avoid card explosion
+    loveNote: "Je pense très fort à toi cette semaine mon amour. Fonce pour ta thèse, je suis tellement fier de toi et de tout ce que tu accomplis. Gros bisous de France ! ❤️",
+    loveNoteAuthor: "Titouan",
+    loveNoteUpdatedAt: todayISO(),
+    reunionDate: "",
   };
 }
 
@@ -763,6 +767,133 @@ const GOAL_META = {
 };
 
 /* =========================================================================
+   DUAL TIMEZONE HOOK & ROMANTIC LOVE BANNER
+   ========================================================================= */
+function useDualTime() {
+  const [time, setTime] = useState({ paris: "", shanghai: "" });
+
+  useEffect(() => {
+    function update() {
+      const now = new Date();
+      setTime({
+        paris: now.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" }),
+        shanghai: now.toLocaleTimeString("fr-FR", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit" }),
+      });
+    }
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return time;
+}
+
+function LoveNoteBanner({ ctx }) {
+  const { settings, meta, saveMeta, addXP } = ctx;
+  const { paris, shanghai } = useDualTime();
+  const [hearts, setHearts] = useState([]);
+  const [showHugModal, setShowHugModal] = useState(false);
+
+  const note = settings.loveNote || "Je pense très fort à toi cette semaine mon amour. Fonce pour ta thèse, je suis tellement fier de toi et de tout ce que tu accomplis. Gros bisous de France ! ❤️";
+  const author = settings.loveNoteAuthor || "Titouan";
+  const hugsCount = meta.hugsCount || 0;
+
+  function triggerHug() {
+    // Spawn floating heart particles
+    const newHearts = Array.from({ length: 14 }).map((_, i) => ({
+      id: uid(),
+      left: Math.floor(Math.random() * 80) + 10,
+      top: Math.floor(Math.random() * 30) + 50,
+      emoji: ["❤️", "💖", "💕", "✨", "🥰", "💌"][i % 6],
+      delay: Math.random() * 0.4,
+    }));
+    setHearts(newHearts);
+    setTimeout(() => setHearts([]), 2400);
+
+    saveMeta((prev) => ({
+      ...prev,
+      hugsCount: (prev.hugsCount || 0) + 1,
+    }));
+    addXP(10, "Gros câlin reçu ❤️");
+    setShowHugModal(true);
+  }
+
+  const daysToReunion = settings.reunionDate ? daysBetween(todayISO(), settings.reunionDate) : null;
+
+  return (
+    <div className="pt-love-card" style={{ marginBottom: 24 }}>
+      {/* Floating Hearts Container */}
+      {hearts.map((h) => (
+        <span
+          key={h.id}
+          className="pt-floating-heart"
+          style={{ left: `${h.left}%`, top: `${h.top}%`, animationDelay: `${h.delay}s` }}
+        >
+          {h.emoji}
+        </span>
+      ))}
+
+      {/* Top row: Clocks & Origin Badge */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+        <div className="pt-dual-clock">
+          <span>🇫🇷 Paris <strong style={{ color: "#E05670" }}>{paris || "—:—"}</strong></span>
+          <span className="pt-clock-dot" />
+          <span>🇨🇳 Shanghai <strong>{shanghai || "—:—"}</strong></span>
+          <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 500 }}>· 9 270 km</span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {daysToReunion != null && daysToReunion > 0 && (
+            <span className="pt-chip" style={{ background: "#FFE4E9", color: "#E05670", fontWeight: 700 }}>
+              ✈️ Retrouvailles dans {daysToReunion} jours !
+            </span>
+          )}
+          <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>
+            From Titouan with Love 💕
+          </span>
+        </div>
+      </div>
+
+      {/* Love Note Content */}
+      <div style={{ position: "relative", zIndex: 2 }}>
+        <div style={{ fontSize: 15, fontStyle: "italic", fontFamily: "'Fraunces', Georgia, serif", color: "#2D2628", lineHeight: 1.6, marginBottom: 8 }}>
+          « {note} »
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#E05670" }}>
+            — Avec tout mon amour, {author}
+          </div>
+          <button className="pt-hug-btn pt-tap" onClick={triggerHug}>
+            <span>❤️</span> Envoyer un gros câlin {hugsCount > 0 && `(${hugsCount})`}
+          </button>
+        </div>
+      </div>
+
+      {/* Hug Modal */}
+      {showHugModal && (
+        <Modal title="Gros Câlin Bien Reçu ! 🥰" onClose={() => setShowHugModal(false)}>
+          <div style={{ textAlign: "center", padding: "12px 6px" }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>💌 ❤️ 🇫🇷 ✈️ 🇨🇳</div>
+            <h3 className="pt-h2" style={{ color: "#E05670", marginBottom: 8 }}>
+              Câlin envoyé depuis la France !
+            </h3>
+            <p className="pt-sub" style={{ fontSize: 14.5, lineHeight: 1.6, marginBottom: 18 }}>
+              Titouan pense très fort à toi en ce moment même. Même à 9 270 km de distance, il est toujours à tes côtés pour t'encourager et te soutenir. Je t'aime plus que tout au monde !
+            </p>
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 16 }}>
+              Total des câlins partagés : <strong>{hugsCount}</strong>
+            </div>
+            <button className="pt-btn pt-btn-primary" style={{ background: "#E05670", borderColor: "#E05670" }} onClick={() => setShowHugModal(false)}>
+              Merci mon amour ❤️
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================================
    HOME / DASHBOARD SCREEN
    ========================================================================= */
 function HomeScreen({ ctx }) {
@@ -844,7 +975,10 @@ function HomeScreen({ ctx }) {
     <div>
       <div className="pt-eyebrow">Dashboard · Current Priorities</div>
       <h1 className="pt-h1">Overview</h1>
-      <p className="pt-sub" style={{ marginBottom: 24 }}>What I am working toward today.</p>
+      <p className="pt-sub" style={{ marginBottom: 20 }}>What I am working toward today.</p>
+
+      {/* Romantic Paris ⇄ Shanghai Love Note & Dual Clock */}
+      <LoveNoteBanner ctx={ctx} />
 
       {/* Prominent Midterm Hero */}
       <div className="pt-hero" style={{ marginBottom: 24 }}>
@@ -2753,6 +2887,45 @@ function SettingsScreen({ ctx }) {
           </Field>
           <Field label="🏙️ Urbanism Portfolio Deadline (Oct 31, 2026)">
             <input type="date" className="pt-input" value={settings.portfolioTarget} onChange={(e) => saveSettings((p) => ({ ...p, portfolioTarget: e.target.value }))} />
+          </Field>
+        </div>
+      </div>
+
+      {/* Love Note & Long Distance Settings */}
+      <div className="pt-card" style={{ marginBottom: 20, borderColor: "#F5D3D9", background: "linear-gradient(135deg, #FFF8F8 0%, #FFFFFF 100%)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 20 }}>💌</span>
+          <div>
+            <div className="pt-h2" style={{ fontSize: 16, margin: 0, color: "#E05670" }}>Mots doux & Relation à distance (France ⇄ Shanghai)</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Écris ou mets à jour le mot d'amour affiché en haut de son tableau de bord.</div>
+          </div>
+        </div>
+
+        <Field label="Mot doux pour Karina (texte affiché sur son accueil)">
+          <textarea
+            className="pt-textarea"
+            style={{ minHeight: 80, fontStyle: "italic" }}
+            value={settings.loveNote || ""}
+            onChange={(e) => saveSettings((p) => ({ ...p, loveNote: e.target.value, loveNoteUpdatedAt: todayISO() }))}
+            placeholder="Écris ton mot doux personnalisé ici…"
+          />
+        </Field>
+
+        <div className="pt-grid2">
+          <Field label="Signature / Surnom (ex: Titouan, Ton amoureux)">
+            <input
+              className="pt-input"
+              value={settings.loveNoteAuthor || "Titouan"}
+              onChange={(e) => saveSettings((p) => ({ ...p, loveNoteAuthor: e.target.value }))}
+            />
+          </Field>
+          <Field label="Date des prochaines retrouvailles (optionnel — affiche le compte à rebours)">
+            <input
+              type="date"
+              className="pt-input"
+              value={settings.reunionDate || ""}
+              onChange={(e) => saveSettings((p) => ({ ...p, reunionDate: e.target.value }))}
+            />
           </Field>
         </div>
       </div>
