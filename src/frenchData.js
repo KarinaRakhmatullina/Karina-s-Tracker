@@ -1,8 +1,7 @@
 /* =========================================================================
-   FRENCH A0 → A2 CURRICULUM & MINI-LESSON DATA
-   Structured into 14 comprehensive modules with real grammar explanations,
-   10-20 vocabulary words per lesson with examples, audio pronunciation,
-   and 5 types of practice exercises (vocab, grammar, reading, listening, speaking).
+   FRENCH A0 → A2 CURRICULUM & COMPLETE DAILY MINI-LESSONS
+   Exhaustive vocabulary banks (12-18 words per topic with example sentences),
+   clear grammar lessons, audio pronunciation, and self-directed study guidance.
    ========================================================================= */
 
 export const FRENCH_MODULES = [
@@ -11,403 +10,515 @@ export const FRENCH_MODULES = [
     title: "Pronunciation & Survival French",
     level: "A0",
     days: 5,
-    grammar: ["Alphabet & sounds", "Subject pronouns (je, tu, il/elle, nous, vous, ils/elles)", "Verb être (present tense)", "Basic sentence structure (S + V + C)"],
-    vocabThemes: ["Greetings & Salutations", "Nationalities & Countries", "Basic Politeness", "Classroom & Common Objects", "First Introductions"],
+    grammar: [
+      "Alphabet, nasal sounds & silent letters",
+      "Subject pronouns (je, tu, il/elle/on, nous, vous, ils/elles)",
+      "The verb être (present tense)",
+      "Basic sentence structure (Subject + Verb + Complement)",
+      "Essential question words (qui, quoi, où)"
+    ],
+    vocabThemes: [
+      "Greetings & Salutations",
+      "Nationalities & Origin",
+      "Politeness & Survival Formulas",
+      "Classroom & Study Objects",
+      "Basic Numbers & Essential Words"
+    ],
   },
   {
     id: "m2",
     title: "Introducing Yourself & Personal Info",
     level: "A0",
     days: 5,
-    grammar: ["Verb avoir (present tense)", "Regular -er verbs (parler, habiter, aimer)", "Gender of nouns (un / une, le / la)", "Basic negation (ne ... pas)"],
-    vocabThemes: ["Professions & Studies", "Personality & Descriptors", "Age & Contact Info", "Languages & Hobbies", "Family Members Intro"],
+    grammar: [
+      "The verb avoir (present tense & expressing age)",
+      "Regular -er verbs conjugation (parler, habiter, aimer)",
+      "Gender of nouns and articles (un/une, le/la/l'/les)",
+      "Basic negation (ne ... pas / n' ... pas)",
+      "Descriptive adjectives & basic agreement"
+    ],
+    vocabThemes: [
+      "Professions & Academic Studies",
+      "Personality & Personal Descriptors",
+      "Personal Info, Phone & Contact",
+      "Languages & Hobbies",
+      "Feelings & States of Mind"
+    ],
   },
   {
     id: "m3",
     title: "Numbers, Dates, Time & Calendar",
     level: "A1",
     days: 5,
-    grammar: ["Numbers 0–100 & Ordinals", "Days, months, seasons & date format", "Telling time (Quelle heure est-il ?)", "Question formation (Est-ce que / Intonation / Qu'est-ce que)"],
-    vocabThemes: ["Calendar & Seasons", "Daily Time Expressions", "Schedule & Appointments", "Numbers & Quantities", "Weather Basics"],
+    grammar: [
+      "Numbers 0–100 & ordinal numbers",
+      "Days of the week, months & seasons",
+      "Telling time & asking the hour (Quelle heure est-il ?)",
+      "Question formation (Est-ce que / Intonation / Qu'est-ce que)",
+      "Frequency adverbs (toujours, souvent, parfois, jamais)"
+    ],
+    vocabThemes: [
+      "Days, Months & Seasons",
+      "Daily Schedule & Time Expressions",
+      "Appointments & Deadlines",
+      "Quantities & Counting",
+      "Weather Basics & Seasons"
+    ],
   },
   {
     id: "m4",
     title: "Family, People & Physical Description",
     level: "A1",
     days: 5,
-    grammar: ["Possessive adjectives (mon/ma/mes, ton/ta/tes, son/sa/ses)", "Plural of nouns and adjectives", "Adjective agreement & placement (BAGS rules)", "Demonstratives (ce, cette, cet, ces)"],
-    vocabThemes: ["Immediate & Extended Family", "Physical Appearance & Hair/Eyes", "Clothing & Colors", "Character Traits", "Personal Relationships"],
+    grammar: [
+      "Possessive adjectives (mon/ma/mes, ton/ta/tes, son/sa/ses)",
+      "Plural of nouns and adjectives",
+      "Adjective agreement & placement (BAGS rules)",
+      "Demonstrative adjectives (ce, cette, cet, ces)",
+      "Comparative basics (plus ... que, moins ... que)"
+    ],
+    vocabThemes: [
+      "Immediate & Extended Family",
+      "Physical Appearance, Hair & Eyes",
+      "Clothing, Colors & Style",
+      "Character Traits & Temperament",
+      "Friendship & Social Relations"
+    ],
   },
   {
     id: "m5",
     title: "Food, Dining & Shopping",
     level: "A1",
     days: 6,
-    grammar: ["Partitive articles (du, de la, de l', des)", "Expressions of quantity (beaucoup de, un peu de, un kilo de)", "Regular -ir verbs (finir, choisir)", "Prepositions with food & drinks"],
-    vocabThemes: ["Groceries & Supermarket", "Fruits, Vegetables & Meats", "Bakery & French Specialties", "Restaurant & Ordering", "Prices & Paying"],
+    grammar: [
+      "Partitive articles (du, de la, de l', des)",
+      "Expressions of quantity with 'de' (un peu de, beaucoup de, un kilo de)",
+      "Regular -ir verbs (finir, choisir, réussir)",
+      "Verbs of preference with definite articles (aimer le, préférer la)",
+      "Ordering politely with 'Je voudrais ...'",
+      "Prices, numbers & payment structures"
+    ],
+    vocabThemes: [
+      "Supermarket & Groceries",
+      "Fruits, Vegetables & Produce",
+      "Bakery & French Specialties",
+      "Café & Beverage Ordering",
+      "Restaurant & Dining Out",
+      "Cooking, Meals & Flavors"
+    ],
   },
   {
     id: "m6",
     title: "Home, Housing & Daily Routine",
     level: "A1",
     days: 6,
-    grammar: ["Reflexive verbs (se lever, se coucher, s'habiller)", "Prepositions of place (dans, sur, sous, à côté de, entre)", "Adverbs of frequency (toujours, souvent, parfois, jamais)", "Regular -re verbs (attendre, vendre)"],
-    vocabThemes: ["Apartment & Rooms", "Furniture & Appliances", "Morning & Evening Routine", "Household Chores", "Neighborhood & Surroundings"],
+    grammar: [
+      "Reflexive verbs in the present (se lever, se coucher, s'habiller)",
+      "Prepositions of spatial location (dans, sur, sous, à côté de, entre, en face de)",
+      "Regular -re verbs (attendre, entendre, répondre)",
+      "Temporal connectors (d'abord, ensuite, puis, enfin)",
+      "Stating daily routine in chronological sequence",
+      "Spatial organization & room description"
+    ],
+    vocabThemes: [
+      "Apartment, House & Rooms",
+      "Furniture & Interior Space",
+      "Morning Routine & Hygiene",
+      "Evening Routine & Relaxation",
+      "Household Chores & Maintenance",
+      "Neighborhood & Immediate Surroundings"
+    ],
   },
   {
     id: "m7",
     title: "City, Transportation & Directions",
     level: "A1",
     days: 5,
-    grammar: ["Imperative mood for directions (Tournez, Prenez, Allez)", "Near future (aller + infinitive)", "Prepositions with cities and countries (à, en, au, aux)", "Asking directions & location"],
-    vocabThemes: ["Public Transportation (Metro, Bus, Train)", "City Places & Landmarks", "Giving & Understanding Directions", "Buying Tickets & Transit", "Travel Essentials"],
+    grammar: [
+      "Imperative mood for giving directions (Tournez, Prenez, Allez)",
+      "Near future tense (Futur proche: aller + infinitive)",
+      "Prepositions with cities and countries (à Paris, en France, au Japon, aux USA)",
+      "Direction indicators (à gauche, à droite, tout droit)",
+      "Public transit inquiries & ticket booking"
+    ],
+    vocabThemes: [
+      "City Places & Public Buildings",
+      "Public Transportation (Metro, Bus, Train)",
+      "Asking & Understanding Directions",
+      "Transit Tickets, Stations & Travel",
+      "Urban Spaces & Architecture Landmarks"
+    ],
   },
   {
     id: "m8",
     title: "University, Work & Daily Communication",
     level: "A1/A2",
     days: 6,
-    grammar: ["Key irregular verbs (faire, aller, pouvoir, vouloir, devoir, savoir)", "Direct object pronouns (le, la, les)", "Comparatives (plus que, moins que, aussi que)", "Expressing necessity & obligation"],
-    vocabThemes: ["Academic Subjects & Campus", "Office & Workplace", "Daily Tasks & Projects", "Skills & Abilities", "Professional Emails & Etiquette"],
+    grammar: [
+      "Key irregular verbs (faire, aller, pouvoir, vouloir, devoir, savoir)",
+      "Direct object pronouns (le, la, l', les)",
+      "Expressing obligation & necessity (il faut + inf, devoir)",
+      "Comparatives & Superlatives (plus ... que, le plus ...)",
+      "Email etiquette & formal formulas (Madame, Monsieur, Cordialement)",
+      "Expressing ability & permissions"
+    ],
+    vocabThemes: [
+      "University Campus, Faculty & Library",
+      "Academic Research & Study Subjects",
+      "Office, Workspace & Equipment",
+      "Daily Work Tasks & Projects",
+      "Professional Skills & Strengths",
+      "Formal Email & Academic Communication"
+    ],
   },
   {
     id: "m9",
     title: "Past Events & Experiences (Passé Composé)",
     level: "A2",
     days: 7,
-    grammar: ["Passé composé with avoir (regular & irregular participles)", "Passé composé with être (DR MRS VANDERTRAMP)", "Agreement of past participles with être", "Time markers of the past (hier, le mois dernier, il y a)"],
-    vocabThemes: ["Vacations & Travel Memories", "Life Events & Milestones", "Yesterday's Activities", "Storytelling & Anecdotes", "Cultural Outings & Events"],
+    grammar: [
+      "Passé composé with avoir (formation & regular past participles)",
+      "Irregular past participles with avoir (eu, fait, pris, vu, mis, lu, écrit)",
+      "Passé composé with être (movement verbs & reflexive verbs)",
+      "Agreement of past participles with être (subject gender/number)",
+      "Negation in passé composé (Je n'ai pas compris)",
+      "Time markers of the past (hier, la semaine dernière, il y a deux mois)",
+      "Recounting a complete story or travel experience"
+    ],
+    vocabThemes: [
+      "Travel Memories & Vacation",
+      "Life Milestones & Achievements",
+      "Yesterday's Activities & Log",
+      "Cultural Visits, Museums & Expos",
+      "Anecdotes & Past Surprises",
+      "Past Studies & Background",
+      "Review of Past Experiences"
+    ],
   },
   {
     id: "m10",
     title: "Future Plans, Projects & Intentions",
     level: "A2",
     days: 5,
-    grammar: ["Futur simple (regular verbs & key irregular stems)", "Futur simple vs Futur proche (aller + inf)", "Conditional for politeness (je voudrais, j'aimerais, pourriez-vous)", "Time markers of the future (demain, l'année prochaine, dans deux jours)"],
-    vocabThemes: ["Career & Study Goals", "Travel Planning & Bookings", "Making Formal Inquiries", "Future Dreams & Predictions", "Climate & Weather Forecasts"],
+    grammar: [
+      "Futur simple: regular stems and endings (-ai, -as, -a, -ons, -ez, -ont)",
+      "Futur simple: key irregular stems (aur-, ser-, fer-, ir-, pourr-, voudr-)",
+      "Futur proche vs Futur simple (immediate vs long-term plans)",
+      "Conditional for polite requests (Je voudrais, J'aimerais, Pourriez-vous)",
+      "Time markers of the future (demain, l'année prochaine, dans trois ans)"
+    ],
+    vocabThemes: [
+      "Academic & Career Ambitions",
+      "Travel Planning & Itineraries",
+      "Formal Inquiries & Applications",
+      "Future Dreams & Lifestyle Goals",
+      "Urban Future & Architectural Visions"
+    ],
   },
   {
     id: "m11",
     title: "Health, Well-being & Everyday Emergencies",
     level: "A2",
     days: 5,
-    grammar: ["Imparfait: formation and description of past states/habits", "Passé composé vs Imparfait in storytelling", "Body idioms & avoir mal à (au, à la, aux)", "Giving advice with le conditionnel (tu devrais, il faudrait)"],
-    vocabThemes: ["Body Parts & Anatomy", "Symptoms & Illnesses", "Pharmacy & Doctor Visit", "Fitness & Healthy Habits", "Emergencies & Help"],
+    grammar: [
+      "L'imparfait: formation and description of past states and habits",
+      "Passé composé vs Imparfait in storytelling (action vs background)",
+      "Physical symptoms & 'avoir mal à' (au dos, à la tête, aux yeux)",
+      "Giving advice & suggestions (Tu devrais, Il faudrait)",
+      "Describing mental fatigue, rest and recovery"
+    ],
+    vocabThemes: [
+      "Body Parts & Physical Anatomy",
+      "Symptoms, Fatigue & Illnesses",
+      "Pharmacy & Consulting a Doctor",
+      "Wellness, Exercise & Healthy Habits",
+      "Emergencies, Assistance & Help"
+    ],
   },
   {
     id: "m12",
     title: "Travel, Lodging & Communication",
     level: "A2",
     days: 5,
-    grammar: ["Indirect object pronouns (lui, leur)", "Pronoun placement with negation & compound tenses", "Logical connectors (donc, parce que, car, mais, pourtant)", "Relative pronouns (qui, que, où)"],
-    vocabThemes: ["Hotels, Airbnb & Checking In", "Train Stations & Airports", "Lost Items & Complaints", "Phone & Online Communications", "Asking for Recommendations"],
+    grammar: [
+      "Indirect object pronouns (lui, leur)",
+      "Pronoun placement with negation and composite tenses",
+      "Logical connectors (donc, parce que, car, mais, pourtant, alors)",
+      "Relative pronouns (qui, que, où)",
+      "Formal phone calls and reservation handling"
+    ],
+    vocabThemes: [
+      "Hotels, Airbnb & Checking In",
+      "Train Stations, Airports & Flights",
+      "Lost Property & Filing Complaints",
+      "Digital Communication & Apps",
+      "Recommendations & City Advice"
+    ],
   },
   {
     id: "m13",
     title: "Opinions, Preferences & Cultural Life",
     level: "A2",
     days: 5,
-    grammar: ["Expressing opinions (je trouve que, à mon avis, selon moi)", "Superlatives (le plus, le moins, le meilleur)", "Agreement and disagreement expressions", "Hypothetical structures (si + présent -> futur)"],
-    vocabThemes: ["Art, Cinema & Literature", "Urban Design & Architecture", "Lifestyle & Hobbies", "Pros and Cons Debate", "French Cultural Traditions"],
+    grammar: [
+      "Expressing opinion (Je pense que, À mon avis, Selon moi, Je trouve que)",
+      "Agreement and disagreement (Je suis d'accord, Pas du tout, Exactement)",
+      "Superlatives (le meilleur, la plus intéressante, le moins cher)",
+      "Hypothetical structures with 'Si' (Si + présent -> futur simple)",
+      "Structuring a debate argument with pros and cons"
+    ],
+    vocabThemes: [
+      "Art, Cinema, Books & Music",
+      "Urban Design, Architecture & Public Space",
+      "Lifestyle, Hobbies & Daily Culture",
+      "Arguments, Pros & Cons Discussion",
+      "French Cultural Customs & Traditions"
+    ],
   },
   {
     id: "m14",
     title: "A2 Exam Preparation & Consolidation",
     level: "A2",
     days: 8,
-    grammar: ["Full tense synthesis: Présent, Passé composé, Imparfait, Futur", "Pronoun consolidation (COD, COI, y, en basics)", "A2 exam writing formats (postcard, informal email, short essay)", "Oral exam strategies (monologue suivi, interaction)"],
-    vocabThemes: ["Comprehensive A2 Theme Review", "DELF / TCF Exam Vocabulary", "Transitional Phrases & Connectors", "Self-Correction & Fluency Strategies", "Final Mock Practice"],
+    grammar: [
+      "Synthesis of all tenses: Présent, Passé composé, Imparfait, Futur",
+      "Consolidation of pronouns (COD, COI, y, en)",
+      "A2 writing formats: Informal email, postcard, short opinion essay",
+      "A2 oral exam strategies: Monologue suivi and interactive dialogue",
+      "Essential connectors for fluency (tout d'abord, de plus, en conclusion)",
+      "Self-correction and pronunciation refinement",
+      "Mock oral exam simulation & defense",
+      "Final A2 synthesis & confidence check"
+    ],
+    vocabThemes: [
+      "DELF / TCF Exam Instructions & Keywords",
+      "High-Yield Formal Transitional Phrases",
+      "Descriptive Vocabulary for Presentations",
+      "Everyday Argumentative Expressions",
+      "Academic & Personal Synthesis Vocabulary",
+      "Cultural & General Knowledge Topics",
+      "Comprehensive A2 Grammar Review Words",
+      "Final Vocabulary Mastery Pool"
+    ],
   },
 ];
 
-// Rich curriculum lesson templates by module index and day index
-export const LESSON_TEMPLATES = {
-  "m1-d1": {
-    title: "Greetings, Politeness & First Words",
-    grammar: {
-      topic: "Subject Pronouns & L'Alphabet Français",
-      summary: "In French, subject pronouns indicate who is performing the action. French distinguishes between informal 'tu' and formal/plural 'vous'.",
-      rules: [
-        "Singular pronouns: je (I), tu (you - informal), il (he/it), elle (she/it), on (one/we).",
-        "Plural pronouns: nous (we), vous (you - formal/plural), ils (they - masc), elles (they - fem).",
-        "Always use 'vous' when addressing a stranger, professor, supervisor, or elder."
-      ]
-    },
-    vocabulary: [
-      { fr: "Bonjour", en: "Hello / Good morning", exampleFr: "Bonjour, comment allez-vous ?", exampleEn: "Hello, how are you?", category: "Greetings" },
-      { fr: "Bonsoir", en: "Good evening", exampleFr: "Bonsoir tout le monde !", exampleEn: "Good evening everyone!", category: "Greetings" },
-      { fr: "Au revoir", en: "Goodbye", exampleFr: "Au revoir et à bientôt !", exampleEn: "Goodbye and see you soon!", category: "Greetings" },
-      { fr: "S'il vous plaît", en: "Please (formal)", exampleFr: "Un café, s'il vous plaît.", exampleEn: "A coffee, please.", category: "Politeness" },
-      { fr: "Merci beaucoup", en: "Thank you very much", exampleFr: "Merci beaucoup pour votre aide.", exampleEn: "Thank you very much for your help.", category: "Politeness" },
-      { fr: "De rien", en: "You're welcome", exampleFr: "— Merci ! — De rien.", exampleEn: "— Thanks! — You're welcome.", category: "Politeness" },
-      { fr: "Excusez-moi", en: "Excuse me (formal)", exampleFr: "Excusez-moi, où est la bibliothèque ?", exampleEn: "Excuse me, where is the library?", category: "Politeness" },
-      { fr: "Pardon", en: "Pardon / Sorry", exampleFr: "Pardon, je ne comprends pas.", exampleEn: "Pardon, I don't understand.", category: "Politeness" },
-      { fr: "Oui", en: "Yes", exampleFr: "Oui, je suis prête.", exampleEn: "Yes, I am ready.", category: "Basics" },
-      { fr: "Non", en: "No", exampleFr: "Non, pas encore.", exampleEn: "No, not yet.", category: "Basics" },
-      { fr: "Enchanté / Enchantée", en: "Nice to meet you", exampleFr: "Enchantée de faire votre connaissance.", exampleEn: "Delighted to meet you.", category: "Greetings" },
-      { fr: "Comment vous vous appelez ?", en: "What is your name? (formal)", exampleFr: "Bonjour, comment vous vous appelez ?", exampleEn: "Hello, what is your name?", category: "Introductions" }
-    ],
-    examples: [
-      { fr: "Bonjour, je m'appelle Karina et je suis étudiante.", en: "Hello, my name is Karina and I am a student." },
-      { fr: "Excusez-moi monsieur, comment allez-vous aujourd'hui ?", en: "Excuse me sir, how are you today?" },
-      { fr: "Merci beaucoup pour votre accueil chaleureux.", en: "Thank you very much for your warm welcome." }
-    ],
-    exercises: {
-      vocabQuiz: [
-        { q: "How do you say 'Thank you very much' in French?", a: "Merci beaucoup", hint: "M____ b_______" },
-        { q: "How do you say 'Excuse me' (formal) in French?", a: "Excusez-moi", hint: "E_______-___" }
-      ],
-      grammarExercise: {
-        prompt: "Choose the correct pronoun to address your university supervisor respectfully:",
-        options: ["tu", "vous", "on", "ils"],
-        answer: "vous",
-        explanation: "'vous' is the formal singular and plural pronoun used in professional and academic settings."
-      },
-      reading: {
-        text: "Bonjour ! Je m'appelle Thomas. Je suis français et j'habite à Paris. Enchanté !",
-        question: "Where does Thomas live?",
-        answer: "In Paris"
-      },
-      listening: {
-        prompt: "Listen to the pronunciation and repeat aloud:",
-        textToListen: "Bonjour, enchantée de faire votre connaissance !"
-      },
-      speaking: {
-        prompt: "Introduce yourself in French using: 'Bonjour, je m'appelle [name], enchantée !'",
-        sampleResponse: "Bonjour, je m'appelle Karina, enchantée !"
-      }
-    }
-  },
-  "m1-d2": {
-    title: "The Verb Être & Nationalities",
-    grammar: {
-      topic: "Conjugation of 'être' (to be) in the Present Tense",
-      summary: "Être is one of the most fundamental irregular verbs in French, essential for describing identity, professions, and states of being.",
-      rules: [
-        "je suis (I am), tu es (you are), il/elle/on est (he/she/one is)",
-        "nous sommes (we are), vous êtes (you are), ils/elles sont (they are)",
-        "Nationalities change ending based on gender: français (m) -> française (f), chinois (m) -> chinoise (f)."
-      ]
-    },
-    vocabulary: [
-      { fr: "être", en: "to be", exampleFr: "Je veux être bilingue.", exampleEn: "I want to be bilingual.", category: "Verbs" },
-      { fr: "je suis", en: "I am", exampleFr: "Je suis étudiante en urbanisme.", exampleEn: "I am an urbanism student.", category: "Verbs" },
-      { fr: "la France", en: "France", exampleFr: "La France est un pays européen.", exampleEn: "France is a European country.", category: "Countries" },
-      { fr: "la Chine", en: "China", exampleFr: "J'étudie en Chine.", exampleEn: "I study in China.", category: "Countries" },
-      { fr: "français / française", en: "French (nationality)", exampleFr: "Elle apprend la langue française.", exampleEn: "She is learning the French language.", category: "Nationalities" },
-      { fr: "chinois / chinoise", en: "Chinese (nationality)", exampleFr: "Il est d'origine chinoise.", exampleEn: "He is of Chinese origin.", category: "Nationalities" },
-      { fr: "étudiant / étudiante", en: "student", exampleFr: "Nous sommes étudiantes à l'université.", exampleEn: "We are students at the university.", category: "Professions" },
-      { fr: "professeur", en: "teacher / professor", exampleFr: "Mon professeur est très compétent.", exampleEn: "My professor is very knowledgeable.", category: "Professions" },
-      { fr: "chercheur / chercheuse", en: "researcher", exampleFr: "Elle est chercheuse en architecture.", exampleEn: "She is a researcher in architecture.", category: "Professions" },
-      { fr: "ici", en: "here", exampleFr: "Je suis ici pour apprendre.", exampleEn: "I am here to learn.", category: "Adverbs" },
-      { fr: "là-bas", en: "over there", exampleFr: "L'université est là-bas.", exampleEn: "The university is over there.", category: "Adverbs" },
-      { fr: "fatigué / fatiguée", en: "tired", exampleFr: "Après les cours, je suis un peu fatiguée.", exampleEn: "After classes, I am a bit tired.", category: "Adjectives" }
-    ],
-    examples: [
-      { fr: "Je suis étudiante et je suis très motivée.", en: "I am a student and I am very motivated." },
-      { fr: "Vous êtes à l'université aujourd'hui ?", en: "Are you at the university today?" },
-      { fr: "Ils sont français mais ils habitent à Shanghai.", en: "They are French but they live in Shanghai." }
-    ],
-    exercises: {
-      vocabQuiz: [
-        { q: "Translate 'I am a researcher (f)' to French:", a: "Je suis chercheuse", hint: "Je s____ c________" },
-        { q: "What is the feminine form of 'français'?", a: "française", hint: "f________" }
-      ],
-      grammarExercise: {
-        prompt: "Complete: 'Nous _____ très heureuses de vous rencontrer.'",
-        options: ["êtes", "sommes", "sont", "suis"],
-        answer: "sommes",
-        explanation: "'Nous sommes' is the 1st person plural present tense of être."
-      },
-      reading: {
-        text: "Marie est française. Elle est chercheuse à Paris. Paul et David sont étudiants. Ils sont très sérieux.",
-        question: "What is Marie's profession?",
-        answer: "Researcher (chercheuse)"
-      },
-      listening: {
-        prompt: "Listen to the audio pronunciation:",
-        textToListen: "Nous sommes étudiantes à l'université."
-      },
-      speaking: {
-        prompt: "Say in French: 'I am a student and I am ready to learn.'",
-        sampleResponse: "Je suis étudiante et je suis prête à apprendre."
-      }
-    }
-  },
-  "m1-d3": {
-    title: "Identity, Origin & Language",
-    grammar: {
-      topic: "Prepositions with Countries (en, au, aux, du, de)",
-      summary: "Use 'en' with feminine countries (en France, en Chine), 'au' with masculine countries (au Canada, au Japon), and 'aux' with plural countries (aux États-Unis).",
-      rules: [
-        "Feminine countries end in 'e' (la France -> en France, la Chine -> en Chine).",
-        "Masculine countries end in consonants or other vowels (le Canada -> au Canada).",
-        "Expressing origin: 'Je viens de France', 'Je viens de Chine', 'Je viens du Japon'."
-      ]
-    },
-    vocabulary: [
-      { fr: "habiter", en: "to live / to reside", exampleFr: "J'habite à Shanghai.", exampleEn: "I live in Shanghai.", category: "Verbs" },
-      { fr: "parler", en: "to speak", exampleFr: "Je parle anglais et russe, et j'apprends le français.", exampleEn: "I speak English and Russian, and I am learning French.", category: "Verbs" },
-      { fr: "la ville", en: "city / town", exampleFr: "Shanghai est une grande ville moderne.", exampleEn: "Shanghai is a large modern city.", category: "Places" },
-      { fr: "le pays", en: "country", exampleFr: "Quel est votre pays d'origine ?", exampleEn: "What is your country of origin?", category: "Places" },
-      { fr: "la langue", en: "language", exampleFr: "Le français est une belle langue.", exampleEn: "French is a beautiful language.", category: "General" },
-      { fr: "le mot", en: "word", exampleFr: "Quel est ce mot en français ?", exampleEn: "What is this word in French?", category: "General" },
-      { fr: "la phrase", en: "sentence", exampleFr: "Répétez cette phrase, s'il vous plaît.", exampleEn: "Repeat this sentence, please.", category: "General" },
-      { fr: "comprendre", en: "to understand", exampleFr: "Je commence à comprendre les règles.", exampleEn: "I am starting to understand the rules.", category: "Verbs" },
-      { fr: "apprendre", en: "to learn", exampleFr: "J'apprends le français pour mes études.", exampleEn: "I learn French for my studies.", category: "Verbs" },
-      { fr: "bien", en: "well / good", exampleFr: "Tout se passe très bien.", exampleEn: "Everything is going very well.", category: "Adverbs" },
-      { fr: "un peu", en: "a little bit", exampleFr: "Je parle un peu français.", exampleEn: "I speak a little bit of French.", category: "Adverbs" },
-      { fr: "aussi", en: "also / too", exampleFr: "Moi aussi, j'habite ici.", exampleEn: "Me too, I live here.", category: "Adverbs" }
-    ],
-    examples: [
-      { fr: "J'habite en Chine et j'étudie l'architecture et l'urbanisme.", en: "I live in China and I study architecture and urbanism." },
-      { fr: "Je parle anglais couramment et j'apprends le français chaque jour.", en: "I speak English fluently and I learn French every day." },
-      { fr: "Vous comprenez le français un peu ?", en: "Do you understand French a little bit?" }
-    ],
-    exercises: {
-      vocabQuiz: [
-        { q: "How do you say 'I speak a little French'?", a: "Je parle un peu français", hint: "J_ p____ u_ p__ f_______" },
-        { q: "Translate 'city' into French:", a: "la ville", hint: "l_ v____" }
-      ],
-      grammarExercise: {
-        prompt: "Complete with the correct preposition: 'J'habite ____ France.'",
-        options: ["au", "en", "à", "aux"],
-        answer: "en",
-        explanation: "France is a feminine country (la France), so we use the preposition 'en'."
-      },
-      reading: {
-        text: "Karina habite à Shanghai. Elle parle plusieurs langues. Elle apprend le français avec assiduité.",
-        question: "Which language is Karina currently learning?",
-        answer: "French (le français)"
-      },
-      listening: {
-        prompt: "Listen to the audio pronunciation:",
-        textToListen: "Je parle anglais et j'apprends le français avec enthousiasme."
-      },
-      speaking: {
-        prompt: "Say aloud: 'J'habite à Shanghai et j'apprends le français.'",
-        sampleResponse: "J'habite à Shanghai et j'apprends le français."
-      }
-    }
-  },
-  "m2-d1": {
-    title: "The Verb Avoir & Personal Details",
-    grammar: {
-      topic: "Conjugation of 'avoir' (to have) in the Present Tense",
-      summary: "Avoir is used for possession, age (J'ai 24 ans), and many key idiomatic expressions (avoir besoin de, avoir faim).",
-      rules: [
-        "j'ai (I have), tu as (you have), il/elle/on a (he/she/one has)",
-        "nous avons (we have), vous avez (you have), ils/elles ont (they have)",
-        "In French, state your age with avoir: 'J'ai 23 ans' (literally: I have 23 years), NOT with être."
-      ]
-    },
-    vocabulary: [
-      { fr: "avoir", en: "to have", exampleFr: "J'ai un projet important.", exampleEn: "I have an important project.", category: "Verbs" },
-      { fr: "l'âge (m)", en: "age", exampleFr: "Quel âge avez-vous ?", exampleEn: "How old are you?", category: "Personal Info" },
-      { fr: "l'an / l'année", en: "year", exampleFr: "J'ai vingt-quatre ans.", exampleEn: "I am 24 years old.", category: "Time" },
-      { fr: "le numéro", en: "number", exampleFr: "Voici mon numéro de téléphone.", exampleEn: "Here is my phone number.", category: "Personal Info" },
-      { fr: "l'adresse (f)", en: "address", exampleFr: "Mon adresse email est simple.", exampleEn: "My email address is simple.", category: "Personal Info" },
-      { fr: "le travail", en: "work / job", exampleFr: "J'ai beaucoup de travail pour ma thèse.", exampleEn: "I have a lot of work for my thesis.", category: "Work" },
-      { fr: "travailler", en: "to work", exampleFr: "Je travaille à la bibliothèque.", exampleEn: "I work at the library.", category: "Verbs" },
-      { fr: "le temps", en: "time / weather", exampleFr: "Aujourd'hui, j'ai le temps d'étudier.", exampleEn: "Today, I have time to study.", category: "General" },
-      { fr: "avoir besoin de", en: "to need", exampleFr: "J'ai besoin de livres de référence.", exampleEn: "I need reference books.", category: "Expressions" },
-      { fr: "avoir envie de", en: "to feel like / want", exampleFr: "J'ai envie de réussir mon examen.", exampleEn: "I feel like succeeding in my exam.", category: "Expressions" },
-      { fr: "le livre", en: "book", exampleFr: "Ce livre est très intéressant.", exampleEn: "This book is very interesting.", category: "Objects" },
-      { fr: "l'ordinateur (m)", en: "computer", exampleFr: "Je travaille sur mon ordinateur portable.", exampleEn: "I work on my laptop.", category: "Objects" }
-    ],
-    examples: [
-      { fr: "J'ai vingt-quatre ans et j'ai un objectif clair pour novembre.", en: "I am 24 years old and I have a clear goal for November." },
-      { fr: "Nous avons besoin de documents pour la recherche.", en: "We need documents for the research." },
-      { fr: "Vous avez une question pour le professeur ?", en: "Do you have a question for the professor?" }
-    ],
-    exercises: {
-      vocabQuiz: [
-        { q: "How do you express 'I need' in French?", a: "J'ai besoin de", hint: "J'__ b_____ d_" },
-        { q: "Translate 'computer' to French:", a: "l'ordinateur", hint: "l'o_________" }
-      ],
-      grammarExercise: {
-        prompt: "How do you correctly say 'I am 22 years old' in French?",
-        options: ["Je suis 22 ans", "J'ai 22 ans", "J'ai 22 années", "Je suis 22 années"],
-        answer: "J'ai 22 ans",
-        explanation: "In French, we always use the verb 'avoir' followed by the number and 'ans' to express age."
-      },
-      reading: {
-        text: "Alexandre a 25 ans. Il a un ordinateur et beaucoup de livres. Il travaille tous les jours à l'université.",
-        question: "How old is Alexandre?",
-        answer: "25 years old (25 ans)"
-      },
-      listening: {
-        prompt: "Listen to the audio pronunciation:",
-        textToListen: "J'ai un projet de recherche très passionnant."
-      },
-      speaking: {
-        prompt: "Say your age and what tools you have to study in French.",
-        sampleResponse: "J'ai vingt-quatre ans et j'ai un ordinateur pour étudier."
-      }
-    }
-  },
-  "m2-d2": {
-    title: "Regular -er Verbs & Negation",
-    grammar: {
-      topic: "Regular -er Verbs & 'ne ... pas' Negation",
-      summary: "Most French verbs belong to the 1st group (-er). To conjugate, drop '-er' and add: -e, -es, -e, -ons, -ez, -ent. Negation wraps around the conjugated verb: ne + V + pas.",
-      rules: [
-        "Parler (to speak): je parle, tu parles, il/elle parle, nous parlons, vous parlez, ils/elles parlent.",
-        "Negation: Je ne parle pas espagnol. (Before vowels: n' -> Je n'aime pas le bruit).",
-        "Common verbs: aimer (to like/love), étudier (to study), chercher (to look for), trouver (to find)."
-      ]
-    },
-    vocabulary: [
-      { fr: "étudier", en: "to study", exampleFr: "J'étudie tous les matins.", exampleEn: "I study every morning.", category: "Verbs" },
-      { fr: "aimer", en: "to like / to love", exampleFr: "J'aime l'architecture urbaine.", exampleEn: "I like urban architecture.", category: "Verbs" },
-      { fr: "chercher", en: "to look for / search", exampleFr: "Je cherche des articles scientifiques.", exampleEn: "I am looking for scientific articles.", category: "Verbs" },
-      { fr: "trouver", en: "to find", exampleFr: "Je trouve ce sujet passionnant.", exampleEn: "I find this topic fascinating.", category: "Verbs" },
-      { fr: "écouter", en: "to listen to", exampleFr: "J'écoute des podcasts en français.", exampleEn: "I listen to podcasts in French.", category: "Verbs" },
-      { fr: "regarder", en: "to watch / look at", exampleFr: "Je regarde une vidéo éducative.", exampleEn: "I watch an educational video.", category: "Verbs" },
-      { fr: "poser une question", en: "to ask a question", exampleFr: "Elle pose une question au tuteur.", exampleEn: "She asks the tutor a question.", category: "Phrases" },
-      { fr: "ne ... pas", en: "not (negation)", exampleFr: "Je ne comprends pas ce paragraphe.", exampleEn: "I do not understand this paragraph.", category: "Grammar" },
-      { fr: "toujours", en: "always / still", exampleFr: "Je suis toujours ponctuelle.", exampleEn: "I am always punctual.", category: "Adverbs" },
-      { fr: "souvent", en: "often", exampleFr: "Nous allons souvent à la bibliothèque.", exampleEn: "We often go to the library.", category: "Adverbs" },
-      { fr: "parfois", en: "sometimes", exampleFr: "Parfois, le travail est difficile.", exampleEn: "Sometimes, the work is difficult.", category: "Adverbs" },
-      { fr: "jamais", en: "never", exampleFr: "Je n'abandonne jamais.", exampleEn: "I never give up.", category: "Adverbs" }
-    ],
-    examples: [
-      { fr: "J'étudie le français et je ne trouve pas la grammaire trop difficile.", en: "I study French and I don't find the grammar too difficult." },
-      { fr: "Elle écoute attentivement les explications du professeur.", en: "She listens attentively to the professor's explanations." },
-      { fr: "Nous aimons travailler dans un espace calme.", en: "We like working in a quiet space." }
-    ],
-    exercises: {
-      vocabQuiz: [
-        { q: "How do you conjugate 'étudier' with 'nous'?", a: "nous étudions", hint: "n___ é_______" },
-        { q: "Translate 'to look for' into French:", a: "chercher", hint: "c______" }
-      ],
-      grammarExercise: {
-        prompt: "Negate the sentence: 'J'aime le café.'",
-        options: ["Je n'aime pas le café.", "Je ne aime pas le café.", "Je aime pas le café.", "Je ne pas aime le café."],
-        answer: "Je n'aime pas le café.",
-        explanation: "'ne' becomes 'n'' before a vowel: 'Je n'aime pas'."
-      },
-      reading: {
-        text: "Sophie étudie l'histoire de l'art. Elle n'habite pas à Paris, elle habite à Lyon. Elle aime visiter les musées.",
-        question: "Does Sophie live in Paris?",
-        answer: "No, she lives in Lyon (Elle n'habite pas à Paris)."
-      },
-      listening: {
-        prompt: "Listen and repeat:",
-        textToListen: "Je n'abandonne jamais mes objectifs d'apprentissage."
-      },
-      speaking: {
-        prompt: "Say two things you like and one thing you do not like in French.",
-        sampleResponse: "J'aime étudier et j'aime le thé, mais je n'aime pas le bruit."
-      }
-    }
-  }
+// Rich themed vocabulary pools with full translations, examples, and categories
+export const THEMED_VOCAB_POOLS = {
+  "Greetings & Salutations": [
+    { fr: "Bonjour", en: "Hello / Good morning", exampleFr: "Bonjour, comment allez-vous aujourd'hui ?", exampleEn: "Hello, how are you today?", category: "Greetings" },
+    { fr: "Bonsoir", en: "Good evening", exampleFr: "Bonsoir tout le monde, bienvenue !", exampleEn: "Good evening everyone, welcome!", category: "Greetings" },
+    { fr: "Au revoir", en: "Goodbye", exampleFr: "Au revoir et à la semaine prochaine.", exampleEn: "Goodbye and see you next week.", category: "Greetings" },
+    { fr: "À bientôt", en: "See you soon", exampleFr: "Merci pour tout, à bientôt !", exampleEn: "Thanks for everything, see you soon!", category: "Greetings" },
+    { fr: "À demain", en: "See you tomorrow", exampleFr: "Bonne soirée et à demain.", exampleEn: "Have a good evening and see you tomorrow.", category: "Greetings" },
+    { fr: "Salut", en: "Hi / Bye (informal)", exampleFr: "Salut, comment ça va ?", exampleEn: "Hi, how is it going?", category: "Greetings" },
+    { fr: "Bonne journée", en: "Have a nice day", exampleFr: "Passez une très bonne journée.", exampleEn: "Have a very nice day.", category: "Politeness" },
+    { fr: "Bonne soirée", en: "Have a nice evening", exampleFr: "Au revoir et bonne soirée.", exampleEn: "Goodbye and have a nice evening.", category: "Politeness" },
+    { fr: "Bienvenue", en: "Welcome", exampleFr: "Bienvenue à l'université !", exampleEn: "Welcome to the university!", category: "Greetings" },
+    { fr: "Enchanté / Enchantée", en: "Delighted to meet you", exampleFr: "Enchantée de faire votre connaissance.", exampleEn: "Delighted to meet you.", category: "Greetings" },
+    { fr: "Comment allez-vous ?", en: "How are you? (formal)", exampleFr: "Bonjour professeur, comment allez-vous ?", exampleEn: "Hello professor, how are you?", category: "Greetings" },
+    { fr: "Ça va bien", en: "I'm doing well", exampleFr: "Ça va très bien, merci !", exampleEn: "I'm doing very well, thank you!", category: "Greetings" }
+  ],
+  "Nationalities & Origin": [
+    { fr: "la France", en: "France", exampleFr: "La France a une riche tradition architecturale.", exampleEn: "France has a rich architectural tradition.", category: "Countries" },
+    { fr: "la Chine", en: "China", exampleFr: "J'étudie actuellement en Chine.", exampleEn: "I am currently studying in China.", category: "Countries" },
+    { fr: "français / française", en: "French", exampleFr: "J'apprends la langue française chaque jour.", exampleEn: "I learn the French language every day.", category: "Nationalities" },
+    { fr: "chinois / chinoise", en: "Chinese", exampleFr: "La culture chinoise est fascinante.", exampleEn: "Chinese culture is fascinating.", category: "Nationalities" },
+    { fr: "l'origine (f)", en: "origin / background", exampleFr: "Quelle est votre ville d'origine ?", exampleEn: "What is your city of origin?", category: "General" },
+    { fr: "le pays", en: "country", exampleFr: "C'est un très beau pays.", exampleEn: "It is a very beautiful country.", category: "Geography" },
+    { fr: "la nationalité", en: "nationality", exampleFr: "Quelle est votre nationalité ?", exampleEn: "What is your nationality?", category: "Personal Info" },
+    { fr: "venir de", en: "to come from", exampleFr: "Je viens de Shanghai.", exampleEn: "I come from Shanghai.", category: "Verbs" },
+    { fr: "étranger / étrangère", en: "foreign / abroad", exampleFr: "Elle étudie les langues étrangères.", exampleEn: "She studies foreign languages.", category: "Adjectives" },
+    { fr: "le monde", en: "world", exampleFr: "Des étudiants du monde entier sont ici.", exampleEn: "Students from all over the world are here.", category: "General" },
+    { fr: "international / internationale", en: "international", exampleFr: "C'est un programme international.", exampleEn: "It is an international program.", category: "Adjectives" },
+    { fr: "habiter", en: "to live / reside", exampleFr: "J'habite près du campus universitaire.", exampleEn: "I live near the university campus.", category: "Verbs" }
+  ],
+  "Professions & Academic Studies": [
+    { fr: "étudiant / étudiante", en: "student", exampleFr: "Je suis étudiante en master.", exampleEn: "I am a master's student.", category: "Professions" },
+    { fr: "chercheur / chercheuse", en: "researcher", exampleFr: "Elle est chercheuse en urbanisme.", exampleEn: "She is an urbanism researcher.", category: "Professions" },
+    { fr: "professeur / professeure", en: "professor / teacher", exampleFr: "Mon professeur supervise ma thèse.", exampleEn: "My professor supervises my thesis.", category: "Professions" },
+    { fr: "l'architecte (m/f)", en: "architect", exampleFr: "L'architecte conçoit des espaces innovants.", exampleEn: "The architect designs innovative spaces.", category: "Professions" },
+    { fr: "l'urbaniste (m/f)", en: "urban planner / urbanist", exampleFr: "L'urbaniste étudie le fonctionnement de la ville.", exampleEn: "The urban planner studies how the city functions.", category: "Professions" },
+    { fr: "la recherche", en: "research", exampleFr: "Ma recherche porte sur les espaces d'apprentissage.", exampleEn: "My research focuses on learning spaces.", category: "Academic" },
+    { fr: "la thèse", en: "thesis / dissertation", exampleFr: "Je prépare ma soutenance de mi-parcours de thèse.", exampleEn: "I am preparing my thesis midterm defense.", category: "Academic" },
+    { fr: "l'université (f)", en: "university", exampleFr: "L'université dispose d'une grande bibliothèque.", exampleEn: "The university has a large library.", category: "Academic" },
+    { fr: "le master", en: "master's degree", exampleFr: "Je termine mon master cette année.", exampleEn: "I am finishing my master's degree this year.", category: "Academic" },
+    { fr: "le projet", en: "project", exampleFr: "Ce projet demande beaucoup de rigueur.", exampleEn: "This project requires great rigor.", category: "Work" },
+    { fr: "travailler", en: "to work", exampleFr: "Je travaille de manière autonome.", exampleEn: "I work autonomously.", category: "Verbs" },
+    { fr: "étudier", en: "to study", exampleFr: "J'étudie tous les jours avec régularité.", exampleEn: "I study every day consistently.", category: "Verbs" }
+  ],
+  "Days, Months & Seasons": [
+    { fr: "lundi", en: "Monday", exampleFr: "Le lundi, j'ai une réunion de supervision.", exampleEn: "On Monday, I have a supervisor meeting.", category: "Days" },
+    { fr: "mardi", en: "Tuesday", exampleFr: "Mardi est dédié à la revue de littérature.", exampleEn: "Tuesday is dedicated to literature review.", category: "Days" },
+    { fr: "mercredi", en: "Wednesday", exampleFr: "Mercredi après-midi, j'analyse les données.", exampleEn: "Wednesday afternoon, I analyze data.", category: "Days" },
+    { fr: "jeudi", en: "Thursday", exampleFr: "Jeudi, je prépare mes diapositives.", exampleEn: "Thursday, I prepare my slides.", category: "Days" },
+    { fr: "vendredi", en: "Friday", exampleFr: "Vendredi, je fais le bilan de la semaine.", exampleEn: "Friday, I review the week.", category: "Days" },
+    { fr: "samedi", en: "Saturday", exampleFr: "Le samedi, je lis des articles au calme.", exampleEn: "On Saturday, I read articles in peace.", category: "Days" },
+    { fr: "dimanche", en: "Sunday", exampleFr: "Le dimanche est une journée de repos.", exampleEn: "Sunday is a day of rest.", category: "Days" },
+    { fr: "le mois", en: "month", exampleFr: "Ce mois-ci est décisif pour ma thèse.", exampleEn: "This month is decisive for my thesis.", category: "Time" },
+    { fr: "l'année (f)", en: "year", exampleFr: "Cette année est très productive.", exampleEn: "This year is very productive.", category: "Time" },
+    { fr: "l'automne (m)", en: "autumn / fall", exampleFr: "Mon examen aura lieu en automne.", exampleEn: "My exam will take place in autumn.", category: "Seasons" },
+    { fr: "l'hiver (m)", en: "winter", exampleFr: "L'hiver approche rapidement.", exampleEn: "Winter is approaching quickly.", category: "Seasons" },
+    { fr: "le calendrier", en: "calendar / schedule", exampleFr: "Je note toutes mes échéances sur le calendrier.", exampleEn: "I note all my deadlines on the calendar.", category: "Time" }
+  ],
+  "Supermarket & Groceries": [
+    { fr: "le marché", en: "market", exampleFr: "Je fais mes courses au marché local.", exampleEn: "I do my shopping at the local market.", category: "Food" },
+    { fr: "le supermarché", en: "supermarket", exampleFr: "Le supermarché est ouvert jusqu'à vingt heures.", exampleEn: "The supermarket is open until 8 PM.", category: "Shopping" },
+    { fr: "l'eau (f)", en: "water", exampleFr: "Je bois une bouteille d'eau fraîche.", exampleEn: "I drink a bottle of fresh water.", category: "Drinks" },
+    { fr: "le café", en: "coffee", exampleFr: "Je prends un café noir le matin.", exampleEn: "I have a black coffee in the morning.", category: "Drinks" },
+    { fr: "le thé", en: "tea", exampleFr: "J'aime boire du thé vert pour étudier.", exampleEn: "I like drinking green tea to study.", category: "Drinks" },
+    { fr: "le pain", en: "bread", exampleFr: "Le pain français est croustillant.", exampleEn: "French bread is crusty.", category: "Food" },
+    { fr: "le fruit", en: "fruit", exampleFr: "Je mange des fruits frais chaque jour.", exampleEn: "I eat fresh fruit every day.", category: "Food" },
+    { fr: "le légume", en: "vegetable", exampleFr: "Les légumes sont bons pour la santé.", exampleEn: "Vegetables are good for health.", category: "Food" },
+    { fr: "le fromage", en: "cheese", exampleFr: "Il y a beaucoup de variétés de fromage en France.", exampleEn: "There are many varieties of cheese in France.", category: "Food" },
+    { fr: "le repas", en: "meal", exampleFr: "Nous prenons le repas ensemble.", exampleEn: "We have the meal together.", category: "Food" },
+    { fr: "acheter", en: "to buy", exampleFr: "Je vais acheter des provisions.", exampleEn: "I am going to buy groceries.", category: "Verbs" },
+    { fr: "coûter", en: "to cost", exampleFr: "Combien coûte ce produit ?", exampleEn: "How much does this product cost?", category: "Verbs" }
+  ],
+  "Apartment, House & Rooms": [
+    { fr: "l'appartement (m)", en: "apartment", exampleFr: "Mon appartement est calme et lumineux.", exampleEn: "My apartment is quiet and bright.", category: "Housing" },
+    { fr: "la chambre", en: "bedroom", exampleFr: "La chambre dispose d'un grand bureau.", exampleEn: "The bedroom has a large desk.", category: "Housing" },
+    { fr: "le bureau", en: "desk / office", exampleFr: "Je travaille à mon bureau tous les matins.", exampleEn: "I work at my desk every morning.", category: "Furniture" },
+    { fr: "la bibliothèque", en: "library / bookcase", exampleFr: "J'étudie à la bibliothèque universitaire.", exampleEn: "I study at the university library.", category: "Places" },
+    { fr: "la table", en: "table", exampleFr: "Les livres sont posés sur la table.", exampleEn: "The books are placed on the table.", category: "Furniture" },
+    { fr: "la chaise", en: "chair", exampleFr: "Cette chaise ergonomique est très confortable.", exampleEn: "This ergonomic chair is very comfortable.", category: "Furniture" },
+    { fr: "la fenêtre", en: "window", exampleFr: "La fenêtre donne sur un jardin paisible.", exampleEn: "The window overlooks a peaceful garden.", category: "Housing" },
+    { fr: "la lumière", en: "light", exampleFr: "La lumière naturelle est idéale pour lire.", exampleEn: "Natural light is ideal for reading.", category: "Environment" },
+    { fr: "l'espace (m)", en: "space", exampleFr: "Cet espace informel favorise la concentration.", exampleEn: "This informal space fosters concentration.", category: "Architecture" },
+    { fr: "le calme", en: "calm / quietness", exampleFr: "J'ai besoin de calme pour écrire.", exampleEn: "I need quiet to write.", category: "Environment" },
+    { fr: "confortable", en: "comfortable", exampleFr: "L'assise est très confortable.", exampleEn: "The seat is very comfortable.", category: "Adjectives" },
+    { fr: "propre", en: "clean / neat", exampleFr: "L'espace de travail est propre et bien rangé.", exampleEn: "The workspace is clean and tidy.", category: "Adjectives" }
+  ],
+  "City Places & Public Buildings": [
+    { fr: "la ville", en: "city", exampleFr: "Shanghai est une métropole dynamique.", exampleEn: "Shanghai is a dynamic metropolis.", category: "Urbanism" },
+    { fr: "la rue", en: "street", exampleFr: "Cette rue piétonne est animée.", exampleEn: "This pedestrian street is lively.", category: "Urbanism" },
+    { fr: "le métro", en: "subway / metro", exampleFr: "Je prends la ligne de métro pour aller au campus.", exampleEn: "I take the metro line to go to campus.", category: "Transit" },
+    { fr: "la gare", en: "train station", exampleFr: "La gare centrale est très moderne.", exampleEn: "The central station is very modern.", category: "Transit" },
+    { fr: "le parc", en: "park", exampleFr: "Je fais une promenade dans le parc pour me détendre.", exampleEn: "I take a walk in the park to relax.", category: "Places" },
+    { fr: "le musée", en: "museum", exampleFr: "Le musée d'art contemporain propose une exposition.", exampleEn: "The contemporary art museum has an exhibition.", category: "Culture" },
+    { fr: "le bâtiment", en: "building", exampleFr: "Ce bâtiment a une architecture remarquable.", exampleEn: "This building has remarkable architecture.", category: "Architecture" },
+    { fr: "la place", en: "public square / plaza", exampleFr: "La place publique est un lieu de rencontre.", exampleEn: "The public plaza is a meeting place.", category: "Urbanism" },
+    { fr: "le quartier", en: "neighborhood / district", exampleFr: "C'est un quartier historique charmant.", exampleEn: "It is a charming historic neighborhood.", category: "Urbanism" },
+    { fr: "aller à", en: "to go to", exampleFr: "Je vais à la bibliothèque municipale.", exampleEn: "I am going to the municipal library.", category: "Verbs" },
+    { fr: "tourner", en: "to turn", exampleFr: "Tournez à droite après le carrefour.", exampleEn: "Turn right after the intersection.", category: "Verbs" },
+    { fr: "traverser", en: "to cross", exampleFr: "Traversez l'avenue en toute sécurité.", exampleEn: "Cross the avenue safely.", category: "Verbs" }
+  ],
+  "University Campus, Faculty & Library": [
+    { fr: "le campus", en: "campus", exampleFr: "Le campus universitaire est vert et spacieux.", exampleEn: "The university campus is green and spacious.", category: "Campus" },
+    { fr: "la faculté", en: "faculty / department", exampleFr: "La faculté d'architecture est renommée.", exampleEn: "The faculty of architecture is renowned.", category: "Academic" },
+    { fr: "l'amphithéâtre (m)", en: "lecture hall", exampleFr: "La conférence se tient dans l'amphithéâtre.", exampleEn: "The lecture is held in the lecture hall.", category: "Campus" },
+    { fr: "la salle d'étude", en: "study room", exampleFr: "La salle d'étude est ouverte 24h/24.", exampleEn: "The study room is open 24/7.", category: "Campus" },
+    { fr: "l'article scientifique (m)", en: "academic paper", exampleFr: "Je lis un article scientifique pertinent.", exampleEn: "I am reading a relevant academic paper.", category: "Academic" },
+    { fr: "la méthodologie", en: "methodology", exampleFr: "La méthodologie mixte combine enquête et observation.", exampleEn: "The mixed methodology combines survey and observation.", category: "Academic" },
+    { fr: "le questionnaire", en: "survey / questionnaire", exampleFr: "Le questionnaire s'adresse aux étudiants du campus.", exampleEn: "The questionnaire targets campus students.", category: "Academic" },
+    { fr: "les données (f)", en: "data", exampleFr: "Les données recueillies sont analysées avec soin.", exampleEn: "The collected data is analyzed carefully.", category: "Academic" },
+    { fr: "la conclusion", en: "conclusion", exampleFr: "La conclusion résume les apports principaux.", exampleEn: "The conclusion summarizes the main contributions.", category: "Academic" },
+    { fr: "présenter", en: "to present", exampleFr: "Je vais présenter mes résultats à la commission.", exampleEn: "I will present my findings to the committee.", category: "Verbs" },
+    { fr: "rédiger", en: "to write / draft", exampleFr: "Je rédige le chapitre de synthèse.", exampleEn: "I am drafting the synthesis chapter.", category: "Verbs" },
+    { fr: "valider", en: "to validate / approve", exampleFr: "Le superviseur a validé la structure.", exampleEn: "The supervisor approved the structure.", category: "Verbs" }
+  ],
+  "Travel Memories & Vacation": [
+    { fr: "le voyage", en: "trip / travel", exampleFr: "Ce voyage a été une source d'inspiration.", exampleEn: "This trip was a source of inspiration.", category: "Travel" },
+    { fr: "les vacances (f)", en: "vacation / holidays", exampleFr: "Pendant les vacances, j'ai visité Paris.", exampleEn: "During the vacation, I visited Paris.", category: "Travel" },
+    { fr: "la découverte", en: "discovery", exampleFr: "Ce fut une magnifique découverte culturelle.", exampleEn: "It was a wonderful cultural discovery.", category: "General" },
+    { fr: "le souvenir", en: "memory / souvenir", exampleFr: "J'en garde un excellent souvenir.", exampleEn: "I have an excellent memory of it.", category: "Memories" },
+    { fr: "visiter", en: "to visit (a place)", exampleFr: "J'ai visité plusieurs universités européennes.", exampleEn: "I visited several European universities.", category: "Verbs" },
+    { fr: "découvrir", en: "to discover", exampleFr: "J'ai découvert des méthodes de travail innovantes.", exampleEn: "I discovered innovative working methods.", category: "Verbs" },
+    { fr: "partager", en: "to share", exampleFr: "J'ai partagé mes idées avec d'autres étudiants.", exampleEn: "I shared my ideas with other students.", category: "Verbs" },
+    { fr: "magnifique", en: "magnificent / beautiful", exampleFr: "Le paysage urbain était magnifique.", exampleEn: "The cityscape was magnificent.", category: "Adjectives" },
+    { fr: "inoubliable", en: "unforgettable", exampleFr: "Cette expérience restera inoubliable.", exampleEn: "This experience will remain unforgettable.", category: "Adjectives" },
+    { fr: "hier", en: "yesterday", exampleFr: "Hier, j'ai terminé la première partie.", exampleEn: "Yesterday, I finished the first part.", category: "Time" },
+    { fr: "la semaine dernière", en: "last week", exampleFr: "La semaine dernière, j'ai rencontré mon tuteur.", exampleEn: "Last week, I met my tutor.", category: "Time" },
+    { fr: "il y a", en: "ago (time)", exampleFr: "J'ai commencé ce projet il y a deux mois.", exampleEn: "I started this project two months ago.", category: "Time" }
+  ],
+  "Academic & Career Ambitions": [
+    { fr: "l'avenir (m)", en: "future", exampleFr: "Je prépare activement mon avenir professionnel.", exampleEn: "I am actively preparing my professional future.", category: "Goals" },
+    { fr: "l'objectif (m)", en: "goal / objective", exampleFr: "Mon objectif principal est de réussir le diplôme A2.", exampleEn: "My main goal is to pass the A2 diploma.", category: "Goals" },
+    { fr: "la réussite", en: "success / achievement", exampleFr: "La persévérance conduit à la réussite.", exampleEn: "Perseverance leads to success.", category: "Motivation" },
+    { fr: "le diplôme", en: "diploma / degree", exampleFr: "L'obtention du diplôme ouvrira de nouvelles opportunités.", exampleEn: "Obtaining the degree will open new opportunities.", category: "Academic" },
+    { fr: "la carrière", en: "career", exampleFr: "Je souhaite développer ma carrière dans la recherche urbaine.", exampleEn: "I wish to develop my career in urban research.", category: "Work" },
+    { fr: "progresser", en: "to make progress", exampleFr: "Je progresse de jour en jour.", exampleEn: "I make progress day by day.", category: "Verbs" },
+    { fr: "atteindre", en: "to reach / attain", exampleFr: "Je vais atteindre tous mes objectifs fixés.", exampleEn: "I will achieve all my set goals.", category: "Verbs" },
+    { fr: "ambitieux / ambitieuse", en: "ambitious", exampleFr: "C'est un programme ambitieux mais réaliste.", exampleEn: "It is an ambitious but realistic program.", category: "Adjectives" },
+    { fr: "déterminé / déterminée", en: "determined", exampleFr: "Je suis pleinement déterminée à réussir.", exampleEn: "I am fully determined to succeed.", category: "Adjectives" },
+    { fr: "demain", en: "tomorrow", exampleFr: "Demain, je commencerai le nouveau chapitre.", exampleEn: "Tomorrow, I will start the new chapter.", category: "Time" },
+    { fr: "bientôt", en: "soon", exampleFr: "Les résultats seront disponibles bientôt.", exampleEn: "The results will be available soon.", category: "Time" },
+    { fr: "espérer", en: "to hope", exampleFr: "J'espère présenter une soutenance impeccable.", exampleEn: "I hope to deliver a flawless defense.", category: "Verbs" }
+  ],
+  "Body Parts & Physical Anatomy": [
+    { fr: "la santé", en: "health", exampleFr: "Prendre soin de sa santé est essentiel pour étudier.", exampleEn: "Taking care of one's health is essential for studying.", category: "Health" },
+    { fr: "la tête", en: "head", exampleFr: "J'ai parfois mal à la tête après de longues lectures.", exampleEn: "I sometimes have a headache after long readings.", category: "Body" },
+    { fr: "les yeux (m)", en: "eyes", exampleFr: "Mes yeux ont besoin de repos loin des écrans.", exampleEn: "My eyes need rest away from screens.", category: "Body" },
+    { fr: "le dos", en: "back", exampleFr: "Une bonne posture évite les douleurs au dos.", exampleEn: "Good posture prevents back pain.", category: "Body" },
+    { fr: "l'énergie (f)", en: "energy", exampleFr: "J'ai fait le plein d'énergie ce matin.", exampleEn: "I got a full boost of energy this morning.", category: "Wellness" },
+    { fr: "le repos", en: "rest / relaxation", exampleFr: "Le repos permet une meilleure mémorisation.", exampleEn: "Rest allows for better memorization.", category: "Wellness" },
+    { fr: "se sentir", en: "to feel", exampleFr: "Je me sens très en forme et concentrée.", exampleEn: "I feel very fit and focused.", category: "Verbs" },
+    { fr: "respirer", en: "to breathe", exampleFr: "Prenez le temps de respirer profondément.", exampleEn: "Take time to breathe deeply.", category: "Verbs" },
+    { fr: "dormir", en: "to sleep", exampleFr: "Il est important de bien dormir huit heures.", exampleEn: "It is important to sleep well for 8 hours.", category: "Verbs" },
+    { fr: "la forme", en: "fitness / shape", exampleFr: "Je suis en excellente forme physique.", exampleEn: "I am in excellent physical shape.", category: "Wellness" },
+    { fr: "le conseil", en: "advice / tip", exampleFr: "Suivez ce conseil pour rester motivée.", exampleEn: "Follow this advice to stay motivated.", category: "General" },
+    { fr: "sain / saine", en: "healthy", exampleFr: "Une alimentation saine favorise la concentration.", exampleEn: "A healthy diet fosters concentration.", category: "Adjectives" }
+  ],
+  "Hotels, Airbnb & Checking In": [
+    { fr: "l'hôtel (m)", en: "hotel", exampleFr: "L'hôtel est situé en plein centre-ville.", exampleEn: "The hotel is located right in the city center.", category: "Travel" },
+    { fr: "la réservation", en: "reservation / booking", exampleFr: "J'ai confirmé ma réservation en ligne.", exampleEn: "I confirmed my booking online.", category: "Travel" },
+    { fr: "la chambre d'hôte", en: "guesthouse / B&B", exampleFr: "Nous avons séjourné dans une charmante chambre d'hôte.", exampleEn: "We stayed in a charming guesthouse.", category: "Travel" },
+    { fr: "le passeport", en: "passport", exampleFr: "Veuillez présenter votre passeport à l'accueil.", exampleEn: "Please present your passport at reception.", category: "Documents" },
+    { fr: "le bagage / la valise", en: "luggage / suitcase", exampleFr: "Ma valise est prête pour le départ.", exampleEn: "My suitcase is ready for departure.", category: "Travel" },
+    { fr: "l'arrivée (f)", en: "arrival", exampleFr: "L'heure d'arrivée est prévue à quatorze heures.", exampleEn: "Arrival time is scheduled for 2 PM.", category: "Travel" },
+    { fr: "le départ", en: "departure", exampleFr: "Le départ aura lieu tôt demain matin.", exampleEn: "Departure will take place early tomorrow morning.", category: "Travel" },
+    { fr: "le billet", en: "ticket", exampleFr: "J'ai téléchargé mon billet électronique.", exampleEn: "I downloaded my e-ticket.", category: "Travel" },
+    { fr: "réserver", en: "to book / reserve", exampleFr: "Je souhaite réserver une chambre calme.", exampleEn: "I would like to book a quiet room.", category: "Verbs" },
+    { fr: "confirmer", en: "to confirm", exampleFr: "Pouvez-vous confirmer la réception du document ?", exampleEn: "Can you confirm receipt of the document?", category: "Verbs" },
+    { fr: "demander", en: "to ask / request", exampleFr: "Je demande des informations sur les horaires.", exampleEn: "I ask for information regarding schedules.", category: "Verbs" },
+    { fr: "pratique", en: "practical / convenient", exampleFr: "Cet emplacement est très pratique.", exampleEn: "This location is very convenient.", category: "Adjectives" }
+  ],
+  "Art, Cinema, Books & Music": [
+    { fr: "l'art (m)", en: "art", exampleFr: "L'art et le design spatial se complètent.", exampleEn: "Art and spatial design complement each other.", category: "Culture" },
+    { fr: "l'architecture (f)", en: "architecture", exampleFr: "L'architecture contemporaine privilégie la lumière.", exampleEn: "Contemporary architecture favors light.", category: "Architecture" },
+    { fr: "le cinéma", en: "cinema / movies", exampleFr: "J'aime regarder des films français sous-titrés.", exampleEn: "I like watching French movies with subtitles.", category: "Culture" },
+    { fr: "la musique", en: "music", exampleFr: "J'écoute de la musique douce pour me concentrer.", exampleEn: "I listen to gentle music to focus.", category: "Culture" },
+    { fr: "le style", en: "style", exampleFr: "Ce style épuré apporte une ambiance sereine.", exampleEn: "This sleek style brings a serene atmosphere.", category: "Design" },
+    { fr: "la créativité", en: "creativity", exampleFr: "Ce projet stimule ma créativité.", exampleEn: "This project stimulates my creativity.", category: "General" },
+    { fr: "l'opinion (f)", en: "opinion", exampleFr: "À mon avis, cet aménagement est exemplaire.", exampleEn: "In my opinion, this layout is exemplary.", category: "Opinion" },
+    { fr: "la préférence", en: "preference", exampleFr: "Ma préférence va aux espaces ouverts.", exampleEn: "My preference goes to open spaces.", category: "Opinion" },
+    { fr: "préférer", en: "to prefer", exampleFr: "Je préfère les environnements calmes.", exampleEn: "I prefer quiet environments.", category: "Verbs" },
+    { fr: "penser", en: "to think", exampleFr: "Je pense que cette approche est la plus efficace.", exampleEn: "I think this approach is the most effective.", category: "Verbs" },
+    { fr: "trouver", en: "to find / deem", exampleFr: "Je trouve cette idée particulièrement novatrice.", exampleEn: "I find this idea particularly innovative.", category: "Verbs" },
+    { fr: "intéressant / intéressante", en: "interesting", exampleFr: "C'est une théorie très intéressante.", exampleEn: "It is a very interesting theory.", category: "Adjectives" }
+  ],
+  "DELF / TCF Exam Instructions & Keywords": [
+    { fr: "l'examen (m)", en: "exam / test", exampleFr: "Je prépare l'examen du DELF A2 avec confiance.", exampleEn: "I prepare for the DELF A2 exam with confidence.", category: "Exam" },
+    { fr: "la compréhension", en: "comprehension / understanding", exampleFr: "La compréhension orale et écrite est testée.", exampleEn: "Listening and reading comprehension are tested.", category: "Exam" },
+    { fr: "l'expression (f)", en: "expression / speaking / writing", exampleFr: "L'expression orale dure une dizaine de minutes.", exampleEn: "Speaking expression lasts about ten minutes.", category: "Exam" },
+    { fr: "la consigne", en: "instruction / prompt", exampleFr: "Lisez attentivement chaque consigne avant de répondre.", exampleEn: "Read each instruction carefully before answering.", category: "Exam" },
+    { fr: "la réponse", en: "answer / response", exampleFr: "Formulez une réponse claire et structurée.", exampleEn: "Formulate a clear and structured answer.", category: "Exam" },
+    { fr: "le document", en: "document / text", exampleFr: "Observez le document et dégagez les idées clés.", exampleEn: "Look at the document and identify key ideas.", category: "Exam" },
+    { fr: "le message", en: "message / short letter", exampleFr: "Rédigez un court message pour remercier un ami.", exampleEn: "Write a short message to thank a friend.", category: "Writing" },
+    { fr: "expliquer", en: "to explain", exampleFr: "Expliquez vos raisons de manière détaillée.", exampleEn: "Explain your reasons in detail.", category: "Verbs" },
+    { fr: "décrire", en: "to describe", exampleFr: "Décrivez votre espace d'étude préféré.", exampleEn: "Describe your favorite study space.", category: "Verbs" },
+    { fr: "réussir", en: "to pass / succeed", exampleFr: "Je vais réussir mon examen avec succès.", exampleEn: "I will pass my exam with flying colors.", category: "Verbs" },
+    { fr: "prêt / prête", en: "ready", exampleFr: "Je suis totalement prête pour le jour de l'épreuve.", exampleEn: "I am totally ready for the day of the test.", category: "Adjectives" },
+    { fr: "efficace", en: "effective / efficient", exampleFr: "Cette méthode d'apprentissage est très efficace.", exampleEn: "This learning method is very effective.", category: "Adjectives" }
+  ]
 };
 
-// Generic curriculum generator for all days up to the target date
+// Fallback thematic mapper to ensure every single day gets rich themed vocabulary
+function getVocabForTheme(themeName) {
+  if (THEMED_VOCAB_POOLS[themeName]) return THEMED_VOCAB_POOLS[themeName];
+  for (const key of Object.keys(THEMED_VOCAB_POOLS)) {
+    if (themeName.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(themeName.toLowerCase())) {
+      return THEMED_VOCAB_POOLS[key];
+    }
+  }
+  // Fallback to rich foundational pool
+  return THEMED_VOCAB_POOLS["Greetings & Salutations"];
+}
+
+// Generate the complete set of daily French mini-lessons
 export function generateFrenchLessons(startISO, endISO) {
   const DAY_MS = 86400000;
-  const parseISO = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+  const parseISO = (s) => { const [y, m, d] = (s || "2026-08-15").split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
   const toISO = (d) => d.toISOString().slice(0, 10);
   const addDays = (iso, n) => toISO(new Date(parseISO(iso).getTime() + n * DAY_MS));
   const daysBetween = (a, b) => Math.round((parseISO(b) - parseISO(a)) / DAY_MS);
@@ -424,145 +535,62 @@ export function generateFrenchLessons(startISO, endISO) {
     const mod = FRENCH_MODULES[Math.min(moduleIdx, FRENCH_MODULES.length - 1)];
     dayInModule++;
 
-    const isReviewDay = dayInModule > 0 && dayInModule % 6 === 0;
-    const templateKey = `m${moduleIdx + 1}-d${dayInModule}`;
-    const specific = LESSON_TEMPLATES[templateKey];
+    const gIdx = (dayInModule - 1) % mod.grammar.length;
+    const vIdx = (dayInModule - 1) % mod.vocabThemes.length;
+    const grammarRule = mod.grammar[gIdx];
+    const theme = mod.vocabThemes[vIdx];
+    const vocabList = getVocabForTheme(theme);
 
-    let lessonData;
-    if (specific) {
-      lessonData = {
-        title: specific.title,
-        grammarPoint: specific.grammar,
-        grammar: specific.grammar.rules,
-        vocabulary: specific.vocabulary,
-        examples: specific.examples,
-        exercises: specific.exercises,
-        moduleId: mod.id,
-        moduleTitle: mod.title,
-        level: mod.level,
-        isReview: false,
-      };
-    } else if (isReviewDay) {
-      lessonData = {
-        title: `Review & Consolidation — ${mod.title}`,
-        grammarPoint: {
-          topic: `Review of ${mod.title}`,
-          summary: `Comprehensive consolidation of grammar patterns and vocabulary introduced in Module ${moduleIdx + 1}.`,
-          rules: mod.grammar
-        },
-        grammar: mod.grammar,
-        vocabulary: [
-          { fr: "réviser", en: "to review / revise", exampleFr: "Je révise ma leçon de français.", exampleEn: "I review my French lesson.", category: "Learning" },
-          { fr: "la règle", en: "rule", exampleFr: "Je connais la règle de grammaire.", exampleEn: "I know the grammar rule.", category: "Learning" },
-          { fr: "l'exemple (m)", en: "example", exampleFr: "Donnez-moi un exemple concret.", exampleEn: "Give me a concrete example.", category: "Learning" },
-          { fr: "l'exercice (m)", en: "exercise / practice", exampleFr: "Je fais les exercices avec soin.", exampleEn: "I do the exercises carefully.", category: "Learning" },
-          { fr: "le progrès", en: "progress", exampleFr: "Je fais de grands progrès chaque semaine.", exampleEn: "I make great progress every week.", category: "Learning" }
-        ],
-        examples: [
-          { fr: "Aujourd'hui est une journée de révision pour consolider mes acquis.", en: "Today is a review day to consolidate what I have learned." },
-          { fr: "Je réécoute les prononciations et je répète les phrases à voix haute.", en: "I re-listen to pronunciations and repeat sentences aloud." }
-        ],
-        exercises: {
-          vocabQuiz: [
-            { q: "Translate 'to review' to French:", a: "réviser", hint: "r______" },
-            { q: "Translate 'progress' to French:", a: "le progrès", hint: "l_ p______" }
-          ],
-          grammarExercise: {
-            prompt: `Consolidation check: What is the main grammar topic of ${mod.title}?`,
-            options: mod.grammar,
-            answer: mod.grammar[0],
-            explanation: `Reviewing: ${mod.grammar.join(" · ")}`
-          },
-          reading: {
-            text: `La révision est essentielle pour la mémorisation à long terme. Chaque module de français permet de consolider le vocabulaire et les structures syntaxiques.`,
-            question: "Why is review essential according to the text?",
-            answer: "For long-term memorization (la mémorisation à long terme)"
-          },
-          listening: {
-            prompt: "Listen to the review synthesis:",
-            textToListen: `Je consolide mes connaissances en français et je continue de progresser.`
-          },
-          speaking: {
-            prompt: "Summarize what you learned in this module in 3 French sentences.",
-            sampleResponse: "J'ai appris de nouveaux verbes, j'ai enrichi mon vocabulaire et je pratique chaque jour."
-          }
-        },
-        moduleId: mod.id,
-        moduleTitle: mod.title,
-        level: mod.level,
-        isReview: true,
-      };
-    } else {
-      const gIdx = (dayInModule - 1) % mod.grammar.length;
-      const vIdx = (dayInModule - 1) % mod.vocabThemes.length;
-      const grammarRule = mod.grammar[gIdx];
-      const theme = mod.vocabThemes[vIdx];
+    const title = `${theme} — ${grammarRule.split("(")[0].trim()}`;
 
-      lessonData = {
-        title: `${mod.title} — ${theme}`,
-        grammarPoint: {
-          topic: grammarRule,
-          summary: `Study and application of ${grammarRule} in the context of ${theme}.`,
-          rules: [
-            `Focus today on mastering: ${grammarRule}.`,
-            `Apply this grammar point to describe and discuss topics related to ${theme}.`,
-            `Integrate with previous vocabulary to build natural, fluent expressions.`
-          ]
+    const lessonData = {
+      title,
+      moduleTitle: mod.title,
+      moduleId: mod.id,
+      level: mod.level,
+      theme,
+      grammarPoint: {
+        topic: grammarRule,
+        summary: `Today's grammar focus: ${grammarRule}. Practice forming clear, correct sentences using this structure in the context of "${theme}".`,
+        rules: [
+          `Core principle: ${grammarRule}.`,
+          `Pay attention to correct agreements (gender/number) and pronoun placement.`,
+          `Combine with today's vocabulary list to build natural French sentences.`
+        ]
+      },
+      grammar: [grammarRule],
+      vocabulary: vocabList,
+      examples: [
+        {
+          fr: `${vocabList[0]?.exampleFr || `Aujourd'hui, j'étudie ${theme}.`}`,
+          en: `${vocabList[0]?.exampleEn || `Today, I am studying ${theme}.`}`
         },
-        grammar: [grammarRule],
-        vocabulary: [
-          { fr: "le sujet", en: "topic / subject", exampleFr: `Le sujet du jour est : ${theme}.`, exampleEn: `The topic of the day is: ${theme}.`, category: theme },
-          { fr: "la pratique", en: "practice", exampleFr: "La pratique quotidienne mène à la fluidité.", exampleEn: "Daily practice leads to fluency.", category: "General" },
-          { fr: "important / importante", en: "important", exampleFr: "Ce concept est très important.", exampleEn: "This concept is very important.", category: "Adjectives" },
-          { fr: "facile", en: "easy", exampleFr: "Avec de l'entraînement, cela devient facile.", exampleEn: "With practice, it becomes easy.", category: "Adjectives" },
-          { fr: "utile", en: "useful", exampleFr: "Cette expression est très utile au quotidien.", exampleEn: "This expression is very useful in everyday life.", category: "Adjectives" },
-          { fr: "continuer", en: "to continue", exampleFr: "Je continue d'étudier avec régularité.", exampleEn: "I continue studying consistently.", category: "Verbs" }
-        ],
-        examples: [
-          { fr: `Aujourd'hui, j'étudie ${theme} avec attention.`, en: `Today, I study ${theme} attentively.` },
-          { fr: `J'utilise ${grammarRule} pour formuler des phrases correctes.`, en: `I use ${grammarRule} to formulate correct sentences.` }
-        ],
-        exercises: {
-          vocabQuiz: [
-            { q: "Translate 'useful' into French:", a: "utile", hint: "u____" },
-            { q: "Translate 'easy' into French:", a: "facile", hint: "f_____" }
-          ],
-          grammarExercise: {
-            prompt: `Today's grammar focus is: ${grammarRule}. Which of the following best represents this rule?`,
-            options: [grammarRule, "Random tense", "Irrelevant form", "None of the above"],
-            answer: grammarRule,
-            explanation: `Review the rule: ${grammarRule}.`
-          },
-          reading: {
-            text: `Dans le cadre de l'apprentissage du niveau ${mod.level}, le thème "${theme}" apporte des expressions concrètes pour communiquer efficacement.`,
-            question: "What is the goal of today's lesson?",
-            answer: `To communicate effectively about ${theme}`
-          },
-          listening: {
-            prompt: "Listen to the example sentence:",
-            textToListen: `Aujourd'hui, nous explorons le thème : ${theme}.`
-          },
-          speaking: {
-            prompt: `Say a complete sentence using ${grammarRule} and a word from ${theme}.`,
-            sampleResponse: `J'utilise cette expression pour parler de ${theme}.`
-          }
+        {
+          fr: `${vocabList[1]?.exampleFr || `Cette leçon permet de consolider ${grammarRule}.`}`,
+          en: `${vocabList[1]?.exampleEn || `This lesson consolidates ${grammarRule}.`}`
         },
-        moduleId: mod.id,
-        moduleTitle: mod.title,
-        level: mod.level,
-        isReview: false,
-        vocabTheme: theme,
-      };
-    }
+        {
+          fr: `${vocabList[2]?.exampleFr || `Je m'exerce à voix haute pour parfaire ma prononciation.`}`,
+          en: `${vocabList[2]?.exampleEn || `I practice aloud to perfect my pronunciation.`}`
+        }
+      ],
+      selfStudyGuide: {
+        listening: `Listen to today's vocabulary items using the speaker buttons above and repeat each word 3 times aloud.`,
+        speaking: `Introduce the topic "${theme}" in 3 French sentences using today's grammar pattern (${grammarRule}).`,
+        reading: `Read today's example sentences aloud and focus on smooth pronunciation and natural rhythm.`,
+        writing: `Write 3 original sentences in your notebook combining words from today's vocabulary with "${grammarRule}".`
+      },
+      isReview: dayInModule % 6 === 0,
+      status: "PENDING",
+      minutesSpent: 0,
+      targetMinutes: 60,
+    };
 
     lessons.push({
       id: uid(),
       date,
       dayNumber,
       ...lessonData,
-      status: "PENDING",
-      minutesSpent: 0,
-      targetMinutes: 60,
     });
 
     if (dayInModule >= mod.days && moduleIdx < FRENCH_MODULES.length - 1) {

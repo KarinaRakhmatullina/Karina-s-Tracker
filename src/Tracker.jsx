@@ -361,18 +361,53 @@ function ensurePortfolioShape(rawPortfolio) {
   };
 }
 
+function ensureFrenchShape(rawFrench, settings) {
+  const generated = generateFrenchLessons(
+    (settings && settings.trackerStart) || "2026-08-15",
+    (settings && settings.frenchTarget) || "2026-11-30"
+  );
+
+  if (!rawFrench || !Array.isArray(rawFrench.lessons) || rawFrench.lessons.length === 0) {
+    return {
+      modules: FRENCH_MODULES,
+      lessons: generated,
+      vocabBank: (rawFrench && rawFrench.vocabBank) || [],
+      currentDayIndex: 0,
+      streak: (rawFrench && rawFrench.streak) || 0,
+      daysStudied: (rawFrench && rawFrench.daysStudied) || 0,
+      totalMinutes: (rawFrench && rawFrench.totalMinutes) || 0,
+      certification: (rawFrench && rawFrench.certification) || blankFrenchCertification(),
+    };
+  }
+
+  // Merge the rich generated lesson data (grammar, vocabulary with examples, pronunciation, selfStudyGuide)
+  // while preserving completed status and logged study minutes!
+  const mergedLessons = generated.map((gen, idx) => {
+    const existing = rawFrench.lessons[idx] || rawFrench.lessons.find((l) => l.dayNumber === gen.dayNumber || l.date === gen.date);
+    if (!existing) return gen;
+    return {
+      ...gen,
+      status: existing.status || "PENDING",
+      minutesSpent: existing.minutesSpent || 0,
+      id: existing.id || gen.id,
+    };
+  });
+
+  return {
+    modules: FRENCH_MODULES,
+    lessons: mergedLessons,
+    vocabBank: rawFrench.vocabBank || [],
+    currentDayIndex: rawFrench.currentDayIndex || 0,
+    streak: rawFrench.streak || 0,
+    daysStudied: rawFrench.daysStudied || 0,
+    totalMinutes: rawFrench.totalMinutes || 0,
+    certification: rawFrench.certification || blankFrenchCertification(),
+  };
+}
+
 function initGoals() {
   return {
-    french: {
-      modules: FRENCH_MODULES,
-      lessons: generateFrenchLessons("2026-08-15", "2026-11-30"),
-      vocabBank: [],
-      currentDayIndex: 0,
-      streak: 0,
-      daysStudied: 0,
-      totalMinutes: 0,
-      certification: blankFrenchCertification(),
-    },
+    french: ensureFrenchShape(null, initSettings()),
     chinese: {
       logs: [], vocabCount: 0, totalMinutes: 0,
       flashcards: CHINESE_SEED_VOCAB.slice(0, 15).map((w) => ({ ...blankChineseFlashcard(), ...w, id: uid() })),
@@ -383,12 +418,12 @@ function initGoals() {
   };
 }
 
-function normalizeGoals(raw) {
+function normalizeGoals(raw, settings) {
   if (!raw) return initGoals();
   const { internship, ...rest } = raw; // Remove internship completely
   return {
     ...rest,
-    french: raw.french || initGoals().french,
+    french: ensureFrenchShape(raw.french, settings),
     chinese: ensureChineseShape(raw.chinese),
     portfolio: ensurePortfolioShape(raw.portfolio),
   };
@@ -535,7 +570,7 @@ export default function Tracker({ onSignOut }) {
   const allLoaded = sLoaded && tLoaded && gLoaded && cLoaded && mLoaded && lLoaded;
 
   const thesis = useMemo(() => migrateThesis(thesisRaw), [thesisRaw]);
-  const goals = useMemo(() => normalizeGoals(goalsRaw), [goalsRaw]);
+  const goals = useMemo(() => normalizeGoals(goalsRaw, settings), [goalsRaw, settings]);
   const literature = useMemo(() => ensureLiteratureShape(literatureRaw), [literatureRaw]);
 
   // One-time automatic schema upgrade
@@ -544,7 +579,8 @@ export default function Tracker({ onSignOut }) {
     migratedRef.current = true;
     const needsThesisUpgrade = !(thesisRaw && Array.isArray(thesisRaw.components) && thesisRaw.components.length >= 16);
     if (needsThesisUpgrade) saveThesis(migrateThesis(thesisRaw));
-    if (goalsRaw && goalsRaw.internship) saveGoals(normalizeGoals(goalsRaw));
+    const needsGoalsUpgrade = goalsRaw && (goalsRaw.internship || !goalsRaw.french?.lessons?.[0]?.selfStudyGuide || !goalsRaw.french?.lessons?.[0]?.vocabulary?.length);
+    if (needsGoalsUpgrade) saveGoals(normalizeGoals(goalsRaw, settings));
     // eslint-disable-next-line
   }, [allLoaded]);
 
@@ -1577,9 +1613,6 @@ function FrenchToday({ ctx }) {
 }
 
 function FrenchMiniLessonView({ lesson }) {
-  const [revealedQuiz, setRevealedQuiz] = useState({});
-  const [selectedGrammarOption, setSelectedGrammarOption] = useState(null);
-
   const grammarPoint = lesson.grammarPoint || {
     topic: (lesson.grammar && lesson.grammar[0]) || "Grammar of the Day",
     summary: "Study and apply the daily grammatical pattern.",
@@ -1588,7 +1621,7 @@ function FrenchMiniLessonView({ lesson }) {
 
   const vocabulary = lesson.vocabulary || [];
   const examples = lesson.examples || [];
-  const exercises = lesson.exercises || {};
+  const guide = lesson.selfStudyGuide || {};
 
   return (
     <div>
@@ -1622,33 +1655,30 @@ function FrenchMiniLessonView({ lesson }) {
         <div className="pt-label" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
           <MessageSquare size={14} /> VOCABULARY OF THE DAY ({vocabulary.length} words with pronunciation)
         </div>
-        {vocabulary.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Vocabulary for this topic can be added to the Vocabulary Bank.</div>
-        ) : (
-          <div className="pt-grid3">
-            {vocabulary.map((v, i) => (
-              <div key={i} className="pt-card pt-card-tight" style={{ background: "var(--paper)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{v.fr}</span>
-                  <FrenchSpeakButton text={v.fr} size={15} />
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>{v.en}</div>
-                {v.exampleFr && (
-                  <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 6, fontStyle: "italic", lineHeight: 1.3 }}>
-                    "{v.exampleFr}"
-                  </div>
-                )}
-                {v.category && <span className="pt-chip" style={{ marginTop: 6 }}>{v.category}</span>}
+        <div className="pt-grid3">
+          {vocabulary.map((v, i) => (
+            <div key={i} className="pt-card pt-card-tight" style={{ background: "var(--paper)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{v.fr}</span>
+                <FrenchSpeakButton text={v.fr} size={15} />
               </div>
-            ))}
-          </div>
-        )}
+              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>{v.en}</div>
+              {v.exampleFr && (
+                <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 6, fontStyle: "italic", lineHeight: 1.3 }}>
+                  "{v.exampleFr}"
+                  {v.exampleEn && <div style={{ fontStyle: "normal", color: "var(--ink-faint)", marginTop: 1 }}>{v.exampleEn}</div>}
+                </div>
+              )}
+              {v.category && <span className="pt-chip" style={{ marginTop: 6 }}>{v.category}</span>}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* 3. PRACTICAL EXAMPLES */}
+      {/* 3. PRACTICAL EXAMPLES & USAGE WITH AUDIO */}
       {examples.length > 0 && (
         <div className="pt-card pt-card-tight" style={{ marginBottom: 18 }}>
-          <div className="pt-label" style={{ marginBottom: 8 }}>PRACTICAL EXAMPLES</div>
+          <div className="pt-label" style={{ marginBottom: 8 }}>PRACTICAL EXAMPLES & USAGE</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {examples.map((ex, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
@@ -1663,75 +1693,46 @@ function FrenchMiniLessonView({ lesson }) {
         </div>
       )}
 
-      {/* 4. INTERACTIVE PRACTICE EXERCISES */}
-      {exercises && (
+      {/* 4. SELF-DIRECTED STUDY & PRACTICE GUIDANCE */}
+      {guide && (
         <div className="pt-card" style={{ background: "var(--paper-raised)" }}>
-          <div className="pt-label" style={{ marginBottom: 12 }}>PRACTICE EXERCISES</div>
-
-          {/* Grammar Exercise */}
-          {exercises.grammarExercise && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                1. Grammar Check: {exercises.grammarExercise.prompt}
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {exercises.grammarExercise.options.map((opt, i) => (
-                  <button
-                    key={i}
-                    className={`pt-btn pt-btn-sm ${selectedGrammarOption === opt ? (opt === exercises.grammarExercise.answer ? "pt-btn-primary" : "pt-btn-danger") : ""}`}
-                    onClick={() => setSelectedGrammarOption(opt)}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-              {selectedGrammarOption && (
-                <div style={{ fontSize: 12, color: selectedGrammarOption === exercises.grammarExercise.answer ? "var(--ontrack)" : "var(--behind)", marginTop: 6 }}>
-                  {selectedGrammarOption === exercises.grammarExercise.answer ? "✓ Correct! " : "✗ Not quite. "}
-                  {exercises.grammarExercise.explanation}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Vocab Quiz */}
-          {exercises.vocabQuiz && exercises.vocabQuiz.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>2. Vocabulary Check:</div>
-              {exercises.vocabQuiz.map((q, idx) => (
-                <div key={idx} style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 12.5 }}>{q.q} {q.hint && <span style={{ color: "var(--ink-faint)" }}>({q.hint})</span>}</div>
-                  {!revealedQuiz[idx] ? (
-                    <button className="pt-btn pt-btn-sm" style={{ marginTop: 4 }} onClick={() => setRevealedQuiz({ ...revealedQuiz, [idx]: true })}>
-                      Reveal answer
-                    </button>
-                  ) : (
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--french)", marginTop: 4 }}>
-                      Answer: {q.a} <FrenchSpeakButton text={q.a} size={13} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Reading & Listening */}
+          <div className="pt-label" style={{ marginBottom: 12 }}>SELF-DIRECTED PRACTICE & STUDY GUIDANCE</div>
           <div className="pt-grid2">
-            {exercises.reading && (
+            {guide.listening && (
               <div className="pt-card pt-card-tight">
-                <div className="pt-label" style={{ marginBottom: 4 }}>Reading Comprehension</div>
-                <div style={{ fontSize: 12.5, fontStyle: "italic", marginBottom: 6 }}>"{exercises.reading.text}"</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>Q: {exercises.reading.question}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>Answer: {exercises.reading.answer}</div>
+                <div className="pt-label" style={{ marginBottom: 4 }}>🎧 Listening & Pronunciation</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.4 }}>
+                  {guide.listening}
+                </div>
+                {vocabulary[0] && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                    <FrenchSpeakButton text={vocabulary.map((v) => v.fr).slice(0, 4).join(". ")} size={16} />
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--french)" }}>Play sample word audio</span>
+                  </div>
+                )}
               </div>
             )}
-            {exercises.listening && (
+            {guide.speaking && (
               <div className="pt-card pt-card-tight">
-                <div className="pt-label" style={{ marginBottom: 4 }}>Listening & Pronunciation</div>
-                <div style={{ fontSize: 12 }}>{exercises.listening.prompt}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                  <FrenchSpeakButton text={exercises.listening.textToListen} size={18} />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Click speaker to listen</span>
+                <div className="pt-label" style={{ marginBottom: 4 }}>🗣️ Speaking Out Loud</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.4 }}>
+                  {guide.speaking}
+                </div>
+              </div>
+            )}
+            {guide.reading && (
+              <div className="pt-card pt-card-tight">
+                <div className="pt-label" style={{ marginBottom: 4 }}>📖 Reading Practice</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.4 }}>
+                  {guide.reading}
+                </div>
+              </div>
+            )}
+            {guide.writing && (
+              <div className="pt-card pt-card-tight">
+                <div className="pt-label" style={{ marginBottom: 4 }}>✍️ Notebook Writing Exercise</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.4 }}>
+                  {guide.writing}
                 </div>
               </div>
             )}
