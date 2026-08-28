@@ -138,7 +138,6 @@ function initSettings() {
     hugMessage: "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️",
     loveNoteAuthor: "Titouan",
     loveNoteUpdatedAt: todayISO(),
-    reunionDate: "",
   };
 }
 
@@ -820,8 +819,6 @@ function LoveNoteBanner({ ctx }) {
     setShowHugModal(true);
   }
 
-  const daysToReunion = settings.reunionDate ? daysBetween(todayISO(), settings.reunionDate) : null;
-
   return (
     <div className="pt-love-card" style={{ marginBottom: 24 }}>
       {/* Floating Hearts Container */}
@@ -835,7 +832,7 @@ function LoveNoteBanner({ ctx }) {
         </span>
       ))}
 
-      {/* Top row: Clocks & Origin Badge (distance removed) */}
+      {/* Top row: Clocks & Origin Badge */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
         <div className="pt-dual-clock">
           <span>🇫🇷 Paris <strong style={{ color: "#E05670" }}>{paris || "—:—"}</strong></span>
@@ -844,11 +841,6 @@ function LoveNoteBanner({ ctx }) {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {daysToReunion != null && daysToReunion > 0 && (
-            <span className="pt-chip" style={{ background: "#FFE4E9", color: "#E05670", fontWeight: 700 }}>
-              ✈️ Reunion in {daysToReunion} days!
-            </span>
-          )}
           <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>
             From Titouan with Love 💕
           </span>
@@ -2854,7 +2846,6 @@ function SettingsScreen({ ctx }) {
     loveNote: settings.loveNote || "Thinking of you so much this week my love. Give everything for your thesis, I am so proud of you and everything you do. Big kisses from France! ❤️",
     hugMessage: settings.hugMessage || "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️",
     loveNoteAuthor: settings.loveNoteAuthor || "Titouan",
-    reunionDate: settings.reunionDate || "",
   });
 
   function confirmImport() {
@@ -2977,7 +2968,6 @@ function SettingsScreen({ ctx }) {
               loveNote: settings.loveNote || "Thinking of you so much this week my love. Give everything for your thesis, I am so proud of you and everything you do. Big kisses from France! ❤️",
               hugMessage: settings.hugMessage || "Titouan is thinking of you right at this very moment. He is always by your side to encourage and support you. I love you more than anything in the world! ❤️",
               loveNoteAuthor: settings.loveNoteAuthor || "Titouan",
-              reunionDate: settings.reunionDate || "",
             });
             setShowSecretEditor(true);
           }}
@@ -3014,24 +3004,14 @@ function SettingsScreen({ ctx }) {
             />
           </Field>
 
-          <div className="pt-grid2">
-            <Field label="Signature / Author Name">
-              <input
-                className="pt-input"
-                value={secretDraft.loveNoteAuthor}
-                onChange={(e) => setSecretDraft({ ...secretDraft, loveNoteAuthor: e.target.value })}
-                placeholder="Titouan"
-              />
-            </Field>
-            <Field label="Next Reunion Date (Optional countdown)">
-              <input
-                type="date"
-                className="pt-input"
-                value={secretDraft.reunionDate}
-                onChange={(e) => setSecretDraft({ ...secretDraft, reunionDate: e.target.value })}
-              />
-            </Field>
-          </div>
+          <Field label="Signature / Author Name">
+            <input
+              className="pt-input"
+              value={secretDraft.loveNoteAuthor}
+              onChange={(e) => setSecretDraft({ ...secretDraft, loveNoteAuthor: e.target.value })}
+              placeholder="Titouan"
+            />
+          </Field>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
             <button className="pt-btn" onClick={() => setShowSecretEditor(false)}>Cancel</button>
